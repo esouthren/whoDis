@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Games collection with subcollections
+    match /games/{gameId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+      
+      // Players subcollection under games
+      match /players/{playerId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update: if request.auth != null;
+        allow delete: if request.auth != null;
+        
+        // Player questions subcollection under players
+        match /player_questions/{questionId} {
+          allow read: if request.auth != null;
+          allow create: if request.auth != null;
+          allow update: if request.auth != null;
+        }
+      }
+      
+      // Round questions subcollection under games
+      match /round_questions/{roundQuestionsId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update: if request.auth != null;
+      }
+      
+      // Guesses subcollection under games
+      match /guesses/{guessId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update: if request.auth != null;
+      }
+    }
+    
+    // Users collection - private to the user
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
