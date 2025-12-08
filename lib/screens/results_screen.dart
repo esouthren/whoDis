@@ -465,6 +465,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
               ...players.skip(3).map((player) {
                 final position = players.indexOf(player) + 1;
                 return Card(
+                  elevation: 0,
                   color: Theme.of(context).colorScheme.onPrimary,
                   child: ListTile(
                     leading: CircleAvatar(child: Text('$position')),
@@ -592,7 +593,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
     Color color,
   ) {
     return Card(
-      color: color.withValues(alpha: 0.2),
+      elevation: 0,
+      color: color.withValues(alpha: 0.4),
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
