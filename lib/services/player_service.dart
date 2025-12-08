@@ -35,12 +35,18 @@ class PlayerService {
     print('[PlayerService] updateQuestionnaireStatus - SUCCESS');
   }
 
-  Future<void> updateScore(String gameId, String playerId, int points) async {
-    print('[PlayerService] updateScore - gameId: $gameId, playerId: $playerId, points: $points');
-    await _firestore.collection('games').doc(gameId).collection('players').doc(playerId).update({
+  Future<void> updateScore(String gameId, String playerId, int points, {int? round}) async {
+    print('[PlayerService] updateScore - gameId: $gameId, playerId: $playerId, points: $points, round: $round');
+    final updates = {
       'score': FieldValue.increment(points),
       'updated_at': Timestamp.fromDate(DateTime.now()),
-    });
+    };
+    
+    if (round != null) {
+      updates['round_scores.$round'] = FieldValue.increment(points);
+    }
+    
+    await _firestore.collection('games').doc(gameId).collection('players').doc(playerId).update(updates);
     print('[PlayerService] updateScore - SUCCESS');
   }
 

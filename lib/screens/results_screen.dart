@@ -235,17 +235,79 @@ class _ResultsScreenState extends State<ResultsScreen> {
         : null;
     final roundQuestions = roundData?.questions ?? <String>[];
     final roundAnswers = roundData?.answers ?? <String>[];
+    
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWideScreen = screenWidth > 900;
 
     return Center(
       child: Container(
         constraints: BoxConstraints(
-          maxWidth: 800,
+          maxWidth: isWideScreen ? double.infinity : 800,
         ),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          child: isWideScreen
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: _buildQuestionsSection(
+                        context,
+                        roundIndex,
+                        game,
+                        targetPlayer,
+                        roundQuestions,
+                        roundAnswers,
+                        roundGuesses,
+                        players,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 1,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 105.0),
+                        child: _buildRoundScoresPanel(context, roundIndex, players),
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildQuestionsSection(
+                      context,
+                      roundIndex,
+                      game,
+                      targetPlayer,
+                      roundQuestions,
+                      roundAnswers,
+                      roundGuesses,
+                      players,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildRoundScoresPanel(context, roundIndex, players),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuestionsSection(
+    BuildContext context,
+    int roundIndex,
+    Game game,
+    Player targetPlayer,
+    List<String> roundQuestions,
+    List<String> roundAnswers,
+    List<Guess> roundGuesses,
+    List<Player> players,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
               Center(
                 child: Column(
                   children: [
@@ -369,10 +431,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   ),
                 );
               }),
-            ],
-          ),
-        ),
-      ),
+      ],
     );
   }
 
@@ -442,6 +501,87 @@ class _ResultsScreenState extends State<ResultsScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildRoundScoresPanel(
+    BuildContext context,
+    int roundIndex,
+    List<Player> players,
+  ) {
+    // Sort players by round score (descending)
+    final playersWithRoundScores = players.map((p) {
+      final roundScore = p.roundScores[roundIndex] ?? 0;
+      return {'player': p, 'score': roundScore};
+    }).toList();
+    
+    playersWithRoundScores.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.onPrimary,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Round ${roundIndex + 1} Score',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.normal,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ...playersWithRoundScores.map((entry) {
+            final player = entry['player'] as Player;
+            final score = entry['score'] as int;
+            final position = playersWithRoundScores.indexOf(entry) + 1;
+            
+            return Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: position == 1
+                        ? Colors.amber
+                        : position == 2
+                            ? Colors.grey
+                            : position == 3
+                                ? Colors.brown
+                                : Theme.of(context).colorScheme.secondary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$position',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    player.username,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ),
+                Text(
+                  '$score pts',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.secondary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            );
+          }),
+        ],
+      ),
     );
   }
 

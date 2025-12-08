@@ -39,6 +39,19 @@ class GuessService {
           .map((doc) => Guess.fromJson(doc.data(), doc.id))
           .toList());
 
+  Future<List<Guess>> getGuessesForRound(String gameId, int round) async {
+    final querySnapshot = await _firestore
+        .collection('games')
+        .doc(gameId)
+        .collection('guesses')
+        .where('round', isEqualTo: round)
+        .get();
+
+    return querySnapshot.docs
+        .map((doc) => Guess.fromJson(doc.data(), doc.id))
+        .toList();
+  }
+
   Future<List<Guess>> getAllGuesses(String gameId) async {
     final querySnapshot = await _firestore
         .collection('games')

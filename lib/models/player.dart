@@ -6,6 +6,7 @@ class Player {
   final String username;
   final bool hasCompletedQuestionnaire;
   final int score;
+  final Map<int, int> roundScores;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -15,6 +16,7 @@ class Player {
     required this.username,
     this.hasCompletedQuestionnaire = false,
     this.score = 0,
+    this.roundScores = const {},
     required this.createdAt,
     required this.updatedAt,
   });
@@ -25,6 +27,7 @@ class Player {
     'username': username,
     'has_completed_questionnaire': hasCompletedQuestionnaire,
     'score': score,
+    'round_scores': roundScores,
     'created_at': Timestamp.fromDate(createdAt),
     'updated_at': Timestamp.fromDate(updatedAt),
   };
@@ -35,6 +38,10 @@ class Player {
     username: json['username'] as String,
     hasCompletedQuestionnaire: json['has_completed_questionnaire'] as bool? ?? false,
     score: json['score'] as int? ?? 0,
+    roundScores: json['round_scores'] != null
+        ? Map<int, int>.from((json['round_scores'] as Map).map(
+            (key, value) => MapEntry(int.parse(key.toString()), value as int)))
+        : {},
     createdAt: (json['created_at'] as Timestamp).toDate(),
     updatedAt: (json['updated_at'] as Timestamp).toDate(),
   );
@@ -45,6 +52,7 @@ class Player {
     String? username,
     bool? hasCompletedQuestionnaire,
     int? score,
+    Map<int, int>? roundScores,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Player(
@@ -53,6 +61,7 @@ class Player {
     username: username ?? this.username,
     hasCompletedQuestionnaire: hasCompletedQuestionnaire ?? this.hasCompletedQuestionnaire,
     score: score ?? this.score,
+    roundScores: roundScores ?? this.roundScores,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );

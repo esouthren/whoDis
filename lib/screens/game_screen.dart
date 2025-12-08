@@ -84,6 +84,9 @@ class _GameScreenState extends State<GameScreen> {
 
   Future<void> _handleRoundEnd(int totalPlayers, int currentRound) async {
     final gameService = GameService();
+    
+    // Award target player (player the round is about) the average score of others
+    await _awardTargetPlayerScore(currentRound);
 
     if (currentRound < totalPlayers - 1) {
       setState(() {
@@ -91,6 +94,55 @@ class _GameScreenState extends State<GameScreen> {
       });
     } else {
       await gameService.updateGameState(widget.gameId, GameState.finished);
+    }
+  }
+
+  Future<void> _awardTargetPlayerScore(int currentRound) async {
+    try {
+      final game = await GameService().getGame(widget.gameId);
+      if (game == null || game.roundOrder.isEmpty) return;
+
+      final targetPlayerId = game.roundOrder[currentRound];
+      
+      // Get all guesses for this round
+      final guessService = GuessService();
+      final guesses = await guessService.getGuessesForRound(widget.gameId, currentRound);
+      
+      // Calculate total points earned by all players (excluding target player)
+      int totalPoints = 0;
+      int guesserCount = 0;
+      
+      final guessesGroupedByPlayer = <String, List<Guess>>{};
+      for (var guess in guesses) {
+        if (guess.guesserId != targetPlayerId) {
+          guessesGroupedByPlayer.putIfAbsent(guess.guesserId, () => []).add(guess);
+        }
+      }
+      
+      // For each guesser, find their first correct guess and award points
+      for (var entry in guessesGroupedByPlayer.entries) {
+        final playerGuesses = entry.value;
+        playerGuesses.sort((a, b) => a.guessNumber.compareTo(b.guessNumber));
+        
+        for (var guess in playerGuesses) {
+          if (guess.targetPlayerId == targetPlayerId) {
+            // This is a correct guess
+            final points = _calculatePoints(guess.questionIndex, guess.guessNumber);
+            totalPoints += points;
+            guesserCount++;
+            break; // Only count first correct guess per player
+          }
+        }
+      }
+      
+      // Award average points to target player
+      if (guesserCount > 0) {
+        final averagePoints = (totalPoints / guesserCount).round();
+        await PlayerService().updateScore(widget.gameId, targetPlayerId, averagePoints, round: currentRound);
+        print('[GameScreen] Awarded $averagePoints points to target player $targetPlayerId (average of $totalPoints from $guesserCount players)');
+      }
+    } catch (e) {
+      print('[GameScreen] Error awarding target player score: $e');
     }
   }
 
@@ -480,7 +532,7 @@ class _GameScreenState extends State<GameScreen> {
 
       if (selectedPlayerId == targetPlayerId) {
         final points = _calculatePoints(currentQuestionIndex, guessCount + 1);
-        await playerService.updateScore(widget.gameId, guesserId, points);
+        await playerService.updateScore(widget.gameId, guesserId, points, round: currentRound);
       }
     } catch (e) {
       if (mounted) {
