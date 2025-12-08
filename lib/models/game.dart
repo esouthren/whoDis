@@ -21,6 +21,7 @@ class Game {
   final int? currentResultsPage;
   final List<int> revealedRounds;
   final int timerDuration;
+  final int? numberOfRounds;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -37,6 +38,7 @@ class Game {
     this.currentResultsPage,
     this.revealedRounds = const [],
     this.timerDuration = 12,
+    this.numberOfRounds,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -54,6 +56,7 @@ class Game {
     'current_results_page': currentResultsPage,
     'revealed_rounds': revealedRounds,
     'timer_duration': timerDuration,
+    'number_of_rounds': numberOfRounds,
     'created_at': Timestamp.fromDate(createdAt),
     'updated_at': Timestamp.fromDate(updatedAt),
   };
@@ -71,6 +74,7 @@ class Game {
     currentResultsPage: json['current_results_page'] as int?,
     revealedRounds: List<int>.from(json['revealed_rounds'] ?? []),
     timerDuration: json['timer_duration'] as int? ?? 12,
+    numberOfRounds: json['number_of_rounds'] as int?,
     createdAt: (json['created_at'] as Timestamp).toDate(),
     updatedAt: (json['updated_at'] as Timestamp).toDate(),
   );
@@ -88,6 +92,7 @@ class Game {
     int? currentResultsPage,
     List<int>? revealedRounds,
     int? timerDuration,
+    int? numberOfRounds,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Game(
@@ -103,6 +108,7 @@ class Game {
     currentResultsPage: currentResultsPage ?? this.currentResultsPage,
     revealedRounds: revealedRounds ?? this.revealedRounds,
     timerDuration: timerDuration ?? this.timerDuration,
+    numberOfRounds: numberOfRounds ?? this.numberOfRounds,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );

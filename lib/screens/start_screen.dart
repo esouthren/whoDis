@@ -163,7 +163,8 @@ class _StartScreenState extends State<StartScreen>
 
   Future<void> _startGame(BuildContext context) async {
     final usernameController = TextEditingController(text: _savedUsername ?? '');
-    final timerController = TextEditingController(text: '12');
+    final timerController = TextEditingController(text: '10');
+    final roundsController = TextEditingController();
 
     final theme = Theme.of(context);
 
@@ -190,9 +191,20 @@ class _StartScreenState extends State<StartScreen>
             TextField(
               controller: timerController,
               keyboardType: TextInputType.number,
+            ),
+            SizedBox(height: 16),
+            Text('Number of Rounds'),
+            SizedBox(height: 12),
+            TextField(
+              controller: roundsController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                hintText: 'Leave empty for # of players',
+              ),
               onSubmitted: (_) => Navigator.pop(context, {
                 'username': usernameController.text,
                 'timer': timerController.text,
+                'rounds': roundsController.text,
               }),
             ),
           ],
@@ -211,6 +223,7 @@ class _StartScreenState extends State<StartScreen>
             onPressed: () => Navigator.pop(context, {
               'username': usernameController.text,
               'timer': timerController.text,
+              'rounds': roundsController.text,
             }),
             child: Text(
               'Create',
@@ -229,13 +242,19 @@ class _StartScreenState extends State<StartScreen>
 
     final username = result['username']!;
     final timerDuration = int.tryParse(result['timer'] ?? '12') ?? 12;
+    final numberOfRounds = result['rounds'] != null && result['rounds']!.isNotEmpty
+        ? int.tryParse(result['rounds']!)
+        : null;
 
     try {
       final userId = _currentUser!.uid;
 
       final gameService = GameService();
-      final game =
-          await gameService.createGame(userId, timerDuration: timerDuration);
+      final game = await gameService.createGame(
+        userId,
+        timerDuration: timerDuration,
+        numberOfRounds: numberOfRounds,
+      );
 
       final playerService = PlayerService();
       await playerService.createPlayer(

@@ -447,15 +447,26 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       print('[QuestionnaireScreen] _startGameAsAdmin - Randomizing player order');
       final playerIdsList = players.map((p) => p.id).toList();
       print('[QuestionnaireScreen] _startGameAsAdmin - Player IDs: $playerIdsList');
+      
+      // Shuffle the list first before choosing round order
       playerIdsList.shuffle();
       print('[QuestionnaireScreen] _startGameAsAdmin - Shuffled player IDs: $playerIdsList');
-      await gameService.setRoundOrder(widget.gameId, playerIdsList);
+      
+      // Apply numberOfRounds limit if specified, otherwise use all players
+      // Cap at player count if numberOfRounds exceeds number of players
+      final requestedRounds = game.numberOfRounds ?? playerIdsList.length;
+      final numberOfRounds = requestedRounds > playerIdsList.length ? playerIdsList.length : requestedRounds;
+      final roundOrder = playerIdsList.take(numberOfRounds).toList();
+      print('[QuestionnaireScreen] _startGameAsAdmin - Number of rounds: $numberOfRounds (requested: $requestedRounds, players: ${playerIdsList.length})');
+      print('[QuestionnaireScreen] _startGameAsAdmin - Round order: $roundOrder');
+      
+      await gameService.setRoundOrder(widget.gameId, roundOrder);
       print('[QuestionnaireScreen] _startGameAsAdmin - Round order set successfully');
       
       // Create round_questions for each round upfront
-      print('[QuestionnaireScreen] _startGameAsAdmin - Creating round_questions for ${playerIdsList.length} rounds');
-      for (int round = 0; round < playerIdsList.length; round++) {
-        final targetPlayerId = playerIdsList[round];
+      print('[QuestionnaireScreen] _startGameAsAdmin - Creating round_questions for ${roundOrder.length} rounds');
+      for (int round = 0; round < roundOrder.length; round++) {
+        final targetPlayerId = roundOrder[round];
         print('[QuestionnaireScreen] _startGameAsAdmin - Round $round: target player ID: $targetPlayerId');
         
         final targetPlayer = players.firstWhere(

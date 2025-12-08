@@ -10,8 +10,8 @@ class GameService {
     return (100000 + random.nextInt(900000)).toString();
   }
 
-  Future<Game> createGame(String creatorId, {int timerDuration = 12}) async {
-    print('[GameService] createGame - creatorId: $creatorId, timerDuration: $timerDuration');
+  Future<Game> createGame(String creatorId, {int timerDuration = 12, int? numberOfRounds}) async {
+    print('[GameService] createGame - creatorId: $creatorId, timerDuration: $timerDuration, numberOfRounds: $numberOfRounds');
     final password = _generatePassword();
     final now = DateTime.now();
     
@@ -23,6 +23,7 @@ class GameService {
       state: GameState.starting,
       playerIds: [creatorId],
       timerDuration: timerDuration,
+      numberOfRounds: numberOfRounds,
       createdAt: now,
       updatedAt: now,
     );
