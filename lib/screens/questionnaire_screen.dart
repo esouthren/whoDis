@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:whodis/constants/questions.dart';
 import 'package:whodis/models/game.dart';
 import 'package:whodis/models/player.dart';
@@ -8,6 +10,7 @@ import 'package:whodis/services/player_service.dart';
 import 'package:whodis/services/player_question_service.dart';
 import 'package:whodis/models/player_question.dart';
 import 'package:whodis/services/round_questions_service.dart';
+import 'package:whodis/services/question_generation_service.dart';
 import 'package:whodis/screens/game_screen.dart';
 import 'package:whodis/screens/countdown_screen.dart';
 
@@ -62,14 +65,67 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     }
   }
 
-  Future<void> _initializeQuestions(String playerId) async {
+  Future<void> _initializeQuestions(String playerId, Game game, List<Player> allPlayers) async {
     if (_questionsInitialized) return;
 
     final playerQuestionService = PlayerQuestionService();
     final existingQuestions = await playerQuestionService.getPlayerQuestions(widget.gameId, playerId);
 
     if (existingQuestions.isEmpty) {
-      _selectedQuestions = getRandomizedQuestionsForRound();
+      // Check if questions have been generated for the game yet
+      if (!game.questionsGenerated) {
+        debugPrint('Questions not yet generated for game. Generating for all ${allPlayers.length} players...');
+        
+        // Generate questions for ALL players at once
+        final allPlayerIds = allPlayers.map((p) => p.id).toList();
+        final questionsMap = await QuestionGenerationService.generateQuestionsForAllPlayers(
+          playerIds: allPlayerIds,
+        );
+        
+        // Store questions for all players in Firestore
+        for (final player in allPlayers) {
+          final questions = questionsMap[player.id];
+          if (questions != null) {
+            // Convert Question objects to PlayerQuestion objects
+            final playerQuestions = questions.asMap().entries.map((entry) {
+              final index = entry.key;
+              final question = entry.value;
+              return PlayerQuestion(
+                id: '',
+                questionText: question.text,
+                answer: '',
+                difficulty: question.difficulty.name,
+                order: index,
+                createdAt: DateTime.now(),
+              );
+            }).toList();
+            
+            await playerQuestionService.savePlayerQuestions(
+              gameId: widget.gameId,
+              playerId: player.id,
+              questions: playerQuestions,
+            );
+          }
+        }
+        
+        // Mark game as having questions generated
+        await FirebaseFirestore.instance
+          .collection('games')
+          .doc(widget.gameId)
+          .update({
+            'questions_generated': true,
+            'updated_at': Timestamp.fromDate(DateTime.now()),
+          });
+        
+        debugPrint('Successfully generated and stored questions for all players');
+        
+        // Use the questions for current player
+        _selectedQuestions = questionsMap[playerId] ?? [];
+      } else {
+        // Questions were generated but not found for this player (shouldn't happen)
+        debugPrint('Questions should exist but not found for player $playerId');
+        _selectedQuestions = getRandomizedQuestionsForRound();
+      }
     } else {
       // Reconstruct questions from existing player_questions
       _selectedQuestions = existingQuestions.map((pq) {
@@ -191,7 +247,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       players.where((p) => p.hasCompletedQuestionnaire).length;
 
                   if (!_questionsInitialized) {
-                    _initializeQuestions(currentPlayer.id);
+                    _initializeQuestions(currentPlayer.id, game, players);
                     return const Center(child: CircularProgressIndicator());
                   }
 

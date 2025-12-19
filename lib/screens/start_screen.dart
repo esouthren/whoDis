@@ -8,6 +8,7 @@ import 'package:whodis/services/player_service.dart';
 import 'package:whodis/services/user_service.dart';
 import 'package:whodis/screens/lobby_screen.dart';
 import 'package:whodis/widgets/buttons.dart';
+import 'package:whodis/screens/testing_screen.dart';
 
 class StartScreen extends StatefulWidget {
   const StartScreen({super.key});
@@ -149,6 +150,15 @@ class _StartScreenState extends State<StartScreen>
                                     onPressed: () => _showJoinDialog(context),
                                     text: 'Join Game',
                                   ),
+                                  const SizedBox(height: 16),
+                                  SecondaryButton(
+                                    onPressed: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const TestingScreen(),
+                                      ),
+                                    ),
+                                    text: 'Testing',
+                                  ),
                                 ],
                               ),
                   ),
@@ -199,7 +209,7 @@ class _StartScreenState extends State<StartScreen>
               controller: roundsController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                hintText: 'Leave empty for # of players',
+                hintText: 'Leave empty to use # of players',
               ),
               onSubmitted: (_) => Navigator.pop(context, {
                 'username': usernameController.text,

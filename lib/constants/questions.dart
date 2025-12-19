@@ -204,8 +204,8 @@ List<Question> getRandomizedQuestionsForRound() {
   
   return [
     ...hard.take(2),
-    ...medium.take(2),
-    ...easy.take(2),
+    ...medium.take(3),
+    ...easy.take(1),
   ];
 }
 
@@ -234,7 +234,7 @@ List<int> getRandomizedQuestionIndices() {
   
   return [
     ...hardIndices.take(2),
-    ...mediumIndices.take(2),
-    ...easyIndices.take(2),
+    ...mediumIndices.take(3),
+    ...easyIndices.take(1),
   ];
 }

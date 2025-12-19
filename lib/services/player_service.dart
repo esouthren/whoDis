@@ -59,6 +59,21 @@ class PlayerService {
           .map((doc) => Player.fromJson(doc.data(), doc.id))
           .toList());
 
+  Future<Player> getPlayer(String gameId, String playerId) async {
+    final doc = await _firestore
+        .collection('games')
+        .doc(gameId)
+        .collection('players')
+        .doc(playerId)
+        .get();
+    
+    if (!doc.exists) {
+      throw Exception('Player not found');
+    }
+    
+    return Player.fromJson(doc.data()!, doc.id);
+  }
+
   Future<Player?> getPlayerByUserId(String gameId, String userId) async {
     final querySnapshot = await _firestore
         .collection('games')
