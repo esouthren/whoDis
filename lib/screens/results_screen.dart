@@ -5,6 +5,15 @@ import 'package:whodis/services/player_service.dart';
 import 'package:whodis/services/game_service.dart';
 import 'package:whodis/services/user_service.dart';
 
+enum ImageSize {
+  large(450),
+  medium(350),
+  small(300);
+
+  final double size;
+  const ImageSize(this.size);
+}
+
 class ResultsScreen extends StatefulWidget {
   final String gameId;
 
@@ -15,23 +24,10 @@ class ResultsScreen extends StatefulWidget {
 }
 
 class _ResultsScreenState extends State<ResultsScreen> {
-  final PageController _pageController = PageController(viewportFraction: 0.9);
-  int _currentPage = 0;
-
   @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  void _goToPage(int index, int max) {
-    if (index < 0 || index >= max) return;
-    setState(() => _currentPage = index);
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeInOut,
-    );
+  void initState() {
+    super.initState();
+    debugPrint('[ResultsScreen] init gameId=${widget.gameId}');
   }
 
   @override
@@ -40,119 +36,157 @@ class _ResultsScreenState extends State<ResultsScreen> {
     final gameService = GameService();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Final Results',
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-        automaticallyImplyLeading: false,
-      ),
       body: StreamBuilder<List<Player>>(
         stream: playerService.watchPlayers(widget.gameId),
         builder: (context, snapshot) {
+          debugPrint(
+              '[ResultsScreen] stream state=${snapshot.connectionState} hasData=${snapshot.hasData} hasError=${snapshot.hasError}');
+          if (snapshot.hasError) {
+            debugPrint(
+                '[ResultsScreen] players stream error: ${snapshot.error}');
+            return const Center(child: Text('Failed to load results'));
+          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final players = [...snapshot.data!];
+          final players = [
+            ...snapshot.data!,
+          ];
+          debugPrint(
+              '[ResultsScreen] players received count=${players.length}');
+          for (var i = 0; i < players.length; i++) {
+            final p = players[i];
+            debugPrint(
+                '[ResultsScreen] player ${i + 1}: name=${p.username} score=${p.score} imageURL=${p.image}');
+          }
           if (players.isEmpty) {
+            debugPrint(
+                '[ResultsScreen] no players found for gameId=${widget.gameId}');
             return const Center(child: Text('No players'));
           }
 
           players.sort((a, b) => b.score.compareTo(a.score));
-          final total = players.length;
 
-          return Center(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 600,),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  PageView.builder(
-                    controller: _pageController,
-                    onPageChanged: (i) => setState(() => _currentPage = i),
-                    itemCount: total,
-                    itemBuilder: (context, index) {
-                      final player = players[index];
-                      final position = index + 1;
-                      return AnimatedScale(
-                        duration: const Duration(milliseconds: 200),
-                        scale: index == _currentPage ? 1.0 : 0.96,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
-                          child: UnconstrainedBox(
-                            alignment: Alignment.topCenter,
-                            constrainedAxis: Axis.vertical,
-                            child: _PlayerResultCard(
-                              position: position,
-                              player: player,
+          final firstPlayer = players.isNotEmpty ? players[0] : null;
+          final secondAndThird = players.length >= 2
+              ? players.sublist(1, players.length >= 3 ? 3 : 2)
+              : <Player>[];
+          final remainingPlayers =
+              players.length > 3 ? players.sublist(3) : <Player>[];
+
+          return Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(0, 12, 0, 24),
+                        child: Text(
+                          'Final Results',
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                      ),
+                      if (firstPlayer != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: _PlayerResultCard(
+                            position: 1,
+                            player: firstPlayer,
+                            imageSize: ImageSize.large,
+                          ),
+                        ),
+                      if (secondAndThird.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: _PlayerResultCard(
+                                    position: 2,
+                                    player: secondAndThird[0],
+                                    imageSize: ImageSize.medium,
+                                  ),
+                                ),
+                              ),
+                              if (secondAndThird.length > 1)
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(left: 8),
+                                    child: _PlayerResultCard(
+                                      position: 3,
+                                      player: secondAndThird[1],
+                                      imageSize: ImageSize.medium,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      if (remainingPlayers.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: SizedBox(
+                            height: 400,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: remainingPlayers.length,
+                              itemBuilder: (context, index) {
+                                final player = remainingPlayers[index];
+                                return Padding(
+                                  padding: EdgeInsets.only(
+                                    right: index < remainingPlayers.length - 1
+                                        ? 16
+                                        : 0,
+                                  ),
+                                  child: SizedBox(
+                                    width: 350,
+                                    child: _PlayerResultCard(
+                                      position: 4 + index,
+                                      player: player,
+                                      imageSize: ImageSize.small,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                         ),
-                      );
-                    },
+                    ],
                   ),
-                  Positioned(
-                    left: 12,
-                    child: _NavArrow(
-                      enabled: _currentPage > 0,
-                      icon: Icons.chevron_left,
-                      onTap: () => _goToPage(_currentPage - 1, total),
-                    ),
-                  ),
-                  Positioned(
-                    right: 12,
-                    child: _NavArrow(
-                      enabled: _currentPage < total - 1,
-                      icon: Icons.chevron_right,
-                      onTap: () => _goToPage(_currentPage + 1, total),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 16,
-                    child: Row(
-                      children: List.generate(total, (i) {
-                        final active = i == _currentPage;
-                        return Container(
-                          width: active ? 20 : 8,
-                          height: 8,
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          decoration: BoxDecoration(
-                            color: active
-                                ? Theme.of(context).colorScheme.secondary
-                                : Theme.of(context).colorScheme.secondary.withValues(alpha: 0.35),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
+                child: Center(
+                  child: SizedBox(
+                    width: 200,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final currentUserId =
+                            FirebaseAuth.instance.currentUser?.uid;
+                        if (currentUserId != null) {
+                          await UserService()
+                              .setActiveGame(currentUserId, null);
+                        }
+                        if (context.mounted) {
+                          Navigator.of(context)
+                              .popUntil((route) => route.isFirst);
+                        }
+                        await gameService.deleteGame(widget.gameId);
+                      },
+                      child: const Text('Back to Lobby'),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           );
         },
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Center(
-          child: SizedBox(
-            width: 200,
-            child: ElevatedButton(
-              onPressed: () async {
-                final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-                if (currentUserId != null) {
-                  await UserService().setActiveGame(currentUserId, null);
-                }
-                if (context.mounted) {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                }
-                await gameService.deleteGame(widget.gameId);
-              },
-              child: const Text('Back to Lobby'),
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -161,69 +195,127 @@ class _ResultsScreenState extends State<ResultsScreen> {
 class _PlayerResultCard extends StatelessWidget {
   final int position;
   final Player player;
+  final ImageSize imageSize;
 
-  const _PlayerResultCard({required this.position, required this.player});
+  const _PlayerResultCard({
+    required this.position,
+    required this.player,
+    required this.imageSize,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cardPadding = imageSize == ImageSize.large ? 24.0 : 16.0;
+    final imageSizeValue = imageSize.size;
+
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.onPrimary,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
       ),
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(cardPadding),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            position == 1
-                ? 'Champion'
-                : position == 2
-                    ? 'Runner-up'
-                    : position == 3
-                        ? 'Third Place'
-                        : '#$position',
-            style: theme.textTheme.titleLarge,
-          ),
-          const SizedBox(height: 16),
-          AspectRatio(
-            aspectRatio: 1,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2),
-                    width: 1,
-                  ),
-                ),
-                child: _PlayerImage(imageUrl: player.image),
-              ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: SizedBox(
+              width: imageSizeValue,
+              height: imageSizeValue,
+              child: _PlayerImage(imageUrl: player.image),
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Flexible(
-                child: Text(
-                  player.username,
-                  style: theme.textTheme.titleLarge,
-                  softWrap: true,
-                  overflow: TextOverflow.ellipsis,
+          position >= 4
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        player.username,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontSize:
+                              ((theme.textTheme.titleLarge?.fontSize ?? 20) *
+                                  0.8),
+                        ),
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '#$position',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.secondary,
+                        fontSize:
+                            (theme.textTheme.titleMedium?.fontSize ?? 16) * 0.8,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${player.score} pts',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.secondary,
+                        fontSize:
+                            (theme.textTheme.titleMedium?.fontSize ?? 16) * 0.8,
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      player.username,
+                      style: (imageSize == ImageSize.large
+                              ? theme.textTheme.headlineSmall
+                              : theme.textTheme.titleLarge)
+                          ?.copyWith(
+                        fontSize: position >= 4
+                            ? ((imageSize == ImageSize.large
+                                            ? theme.textTheme.headlineSmall
+                                            : theme.textTheme.titleLarge)
+                                        ?.fontSize ??
+                                    20) *
+                                0.8
+                            : null,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '#$position',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.secondary,
+                            fontSize: position >= 4
+                                ? (theme.textTheme.titleMedium?.fontSize ??
+                                        16) *
+                                    0.8
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Text(
+                          '${player.score} pts',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.secondary,
+                            fontSize: position >= 4
+                                ? (theme.textTheme.titleMedium?.fontSize ??
+                                        16) *
+                                    0.8
+                                : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                '${player.score} pts',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: theme.colorScheme.secondary,
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -256,7 +348,8 @@ class _PlayerImage extends StatelessWidget {
         if (loadingProgress == null) return child;
         final expected = loadingProgress.expectedTotalBytes;
         final loaded = loadingProgress.cumulativeBytesLoaded;
-        debugPrint('[ResultsScreen] loading image ${imageUrl} loaded=$loaded expected=$expected');
+        debugPrint(
+            '[ResultsScreen] loading image ${imageUrl} loaded=$loaded expected=$expected');
         return Container(
           color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.06),
           alignment: Alignment.center,
@@ -280,42 +373,6 @@ class _PlayerImage extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _NavArrow extends StatelessWidget {
-  final bool enabled;
-  final IconData icon;
-  final VoidCallback onTap;
-  const _NavArrow({required this.enabled, required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedOpacity(
-      opacity: enabled ? 1 : 0.3,
-      duration: const Duration(milliseconds: 150),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          borderRadius: BorderRadius.circular(999),
-          child: Ink(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.onPrimary,
-              shape: BoxShape.circle,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Icon(
-                icon,
-                size: 36,
-                color: Theme.of(context).colorScheme.secondary,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

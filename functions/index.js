@@ -78,7 +78,7 @@ Generate ${totalQuestions} unique questions now (${hardCount} hard, ${mediumCoun
           content: prompt
         }
       ],
-      temperature: 1.2, // Higher creativity for more variance and randomness
+      temperature: 1.6, // Higher creativity for more variance and randomness
       max_tokens: 500,
     }),
   });
@@ -390,7 +390,8 @@ exports.generateCharacterPortrait = onCall(
         'The Powerpuff Girls',
         'The Ren & Stimpy Show',
         'The Smurfs',
-        'Hey Arthur'
+        'Hey Arthur',
+        'Scooby Doo',
       ];
 
       const style = styles[Math.floor(Math.random() * styles.length)];
@@ -410,7 +411,7 @@ Consider incorporating the logo into the image, such as on the character's shirt
       console.log('Generating image with Nano Banana...');
 
       const geminiResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
+        model: 'gemini-3-pro-image-preview',
         contents: [
           prompt,
           {
