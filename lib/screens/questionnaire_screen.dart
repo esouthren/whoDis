@@ -13,6 +13,7 @@ import 'package:whodis/services/round_questions_service.dart';
 import 'package:whodis/services/question_generation_service.dart';
 import 'package:whodis/screens/game_screen.dart';
 import 'package:whodis/screens/countdown_screen.dart';
+import 'package:whodis/widgets/loading_overlay.dart';
 
 class QuestionnaireScreen extends StatefulWidget {
   final String gameId;
@@ -200,233 +201,248 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                   ]
                 : null,
           ),
-          body: Builder(
-            builder: (context) {
-              if (!gameSnapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              final game = gameSnapshot.data!;
-
-              if (game.state == GameState.game && !_hasNavigatedToCountdown) {
-                _hasNavigatedToCountdown = true;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => CountdownScreen(
-                        title: "Let's play!",
-                        onComplete: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  GameScreen(gameId: widget.gameId),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  );
-                });
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              return StreamBuilder<List<Player>>(
-                stream: playerService.watchPlayers(widget.gameId),
-                builder: (context, playersSnapshot) {
-                  if (!playersSnapshot.hasData) {
+          body: Stack(
+            children: [
+              Builder(
+                builder: (context) {
+                  if (!gameSnapshot.hasData) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final players = playersSnapshot.data!;
-                  final currentPlayer = players.firstWhere(
-                    (p) => p.userId == currentUserId,
-                  );
-                  final completedCount =
-                      players.where((p) => p.hasCompletedQuestionnaire).length;
+                  final game = gameSnapshot.data!;
 
-                  if (!_questionsInitialized) {
-                    _initializeQuestions(currentPlayer.id, game, players);
+                  if (game.state == GameState.game && !_hasNavigatedToCountdown) {
+                    _hasNavigatedToCountdown = true;
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CountdownScreen(
+                            title: "Let's play!",
+                            onComplete: () {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      GameScreen(gameId: widget.gameId),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      );
+                    });
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  if (currentPlayer.hasCompletedQuestionnaire) {
-                    final isAdmin = game.creatorId == currentUserId;
-                    final adminPlayer = players.firstWhere(
-                      (p) => p.userId == game.creatorId,
-                    );
+                  return StreamBuilder<List<Player>>(
+                    stream: playerService.watchPlayers(widget.gameId),
+                    builder: (context, playersSnapshot) {
+                      if (!playersSnapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-                    return Center(
-                      child: Container(
-                        constraints: BoxConstraints(
-                          maxWidth: 800,
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.check_circle,
-                                size: 64, color: Colors.green),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Waiting for other players...',
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Players completed: $completedCount/${players.length}',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 32),
-                            if (isAdmin)
-                              ElevatedButton(
-                                onPressed: _isStartingGame
-                                    ? null
-                                    : () => _startGameAsAdmin(game, players),
-                                child: const Text('Start Game'),
-                              )
-                            else
-                              Text(
-                                'Waiting for ${adminPlayer.username} to start the game',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
+                      final players = playersSnapshot.data!;
+                      final currentPlayer = players.firstWhere(
+                        (p) => p.userId == currentUserId,
+                      );
+                      final completedCount =
+                          players.where((p) => p.hasCompletedQuestionnaire).length;
 
-                  return Center(
-                    child: Container(
-                      constraints: BoxConstraints(
-                        maxWidth: 800,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          SizedBox(height: 32,),
-                          Padding(
-                            padding: const EdgeInsets.all(16.0),
+                      if (!_questionsInitialized) {
+                        _initializeQuestions(currentPlayer.id, game, players);
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      if (currentPlayer.hasCompletedQuestionnaire) {
+                        final isAdmin = game.creatorId == currentUserId;
+                        final adminPlayer = players.firstWhere(
+                          (p) => p.userId == game.creatorId,
+                        );
+
+                        return Center(
+                          child: Container(
+                            constraints: BoxConstraints(
+                              maxWidth: 800,
+                            ),
                             child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
+                                const Icon(Icons.check_circle,
+                                    size: 64, color: Colors.green),
+                                const SizedBox(height: 16),
                                 Text(
-                                  'Question ${_currentPage + 1} of 6',
+                                  'Waiting for other players...',
                                   style: Theme.of(context).textTheme.titleLarge,
                                 ),
                                 const SizedBox(height: 8),
-                                LinearProgressIndicator(
-                                  backgroundColor:
-                                      Theme.of(context).colorScheme.tertiary,
-                                  color: Theme.of(context).colorScheme.secondary,
-                                  value: (_currentPage + 1) / 6,
+                                Text(
+                                  'Players completed: $completedCount/${players.length}',
+                                  style: Theme.of(context).textTheme.titleMedium,
                                 ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: PageView.builder(
-                              controller: _pageController,
-                              physics: const NeverScrollableScrollPhysics(),
-                              onPageChanged: (index) {
-                                setState(() {
-                                  _currentPage = index;
-                                });
-                              },
-                              itemCount: 6,
-                              itemBuilder: (context, index) {
-                                final question = _selectedQuestions[index];
-                                return Padding(
-                                  padding: const EdgeInsets.all(24.0),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        question.text,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .headlineSmall,
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      const SizedBox(height: 32),
-                                      TextField(
-                                        controller: controllers[index],
-                                        decoration: const InputDecoration(
-                                          hintText: 'Your answer',
-                                          border: OutlineInputBorder(),
-                                        ),
-                                        autofocus: true,
-                                        textInputAction: TextInputAction.done,
-                                        onChanged: (value) {
-                                          setState(() {
-                                            answers[index] = value.trim();
-                                          });
-                                        },
-                                        onSubmitted: (_) {
-                                          if (_currentQuestionAnswered()) {
-                                            if (_currentPage < 5) {
-                                              _goToNextQuestion();
-                                            } else {
-                                              _submitAnswers(
-                                                  currentPlayer.id, players, game);
-                                            }
-                                          }
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                if (_currentPage > 0)
-                                  TextButton.icon(
-                                    onPressed: () {
-                                      _pageController.previousPage(
-                                        duration: const Duration(milliseconds: 300),
-                                        curve: Curves.easeInOut,
-                                      );
-                                    },
-                                    icon: const Icon(Icons.arrow_back),
-                                    label: const Text('Back'),
+                                const SizedBox(height: 32),
+                                if (isAdmin)
+                                  ElevatedButton(
+                                    onPressed: _isStartingGame
+                                        ? null
+                                        : () => _startGameAsAdmin(game, players),
+                                    child: const Text('Start Game'),
                                   )
                                 else
-                                  const SizedBox(),
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    bottom: 48,
+                                  Text(
+                                    'Waiting for ${adminPlayer.username} to start the game',
+                                    style: Theme.of(context).textTheme.titleMedium,
                                   ),
-                                  child: ElevatedButton(
-                                    onPressed: _currentQuestionAnswered()
-                                        ? () {
-                                            if (_currentPage < 5) {
-                                              _goToNextQuestion();
-                                            } else {
-                                              _submitAnswers(
-                                                  currentPlayer.id, players, game);
-                                            }
-                                          }
-                                        : null,
-                                    child: Text(
-                                      _currentPage < 5 ? 'Next' : 'Submit',
-                                    ),
-                                  ),
-                                ),
                               ],
                             ),
                           ),
-                        ],
-                      ),
-                    ),
+                        );
+                      }
+
+                      return Center(
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth: 800,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              SizedBox(height: 32,),
+                              Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      'Question ${_currentPage + 1} of 6',
+                                      style: Theme.of(context).textTheme.titleLarge,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    LinearProgressIndicator(
+                                      backgroundColor:
+                                          Theme.of(context).colorScheme.tertiary,
+                                      color: Theme.of(context).colorScheme.secondary,
+                                      value: (_currentPage + 1) / 6,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Expanded(
+                                child: PageView.builder(
+                                  controller: _pageController,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  onPageChanged: (index) {
+                                    setState(() {
+                                      _currentPage = index;
+                                    });
+                                  },
+                                  itemCount: 6,
+                                  itemBuilder: (context, index) {
+                                    final question = _selectedQuestions[index];
+                                    return Padding(
+                                      padding: const EdgeInsets.all(24.0),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            question.text,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .headlineSmall,
+                                            textAlign: TextAlign.center,
+                                          ),
+                                          const SizedBox(height: 32),
+                                          TextField(
+                                            controller: controllers[index],
+                                            decoration: const InputDecoration(
+                                              hintText: 'Your answer',
+                                              border: OutlineInputBorder(),
+                                            ),
+                                            autofocus: true,
+                                            textInputAction: TextInputAction.done,
+                                            onChanged: (value) {
+                                              setState(() {
+                                                answers[index] = value.trim();
+                                              });
+                                            },
+                                            onSubmitted: (_) {
+                                              if (_currentQuestionAnswered()) {
+                                                if (_currentPage < 5) {
+                                                  _goToNextQuestion();
+                                                } else {
+                                                  _submitAnswers(
+                                                      currentPlayer.id, players, game);
+                                                }
+                                              }
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    if (_currentPage > 0)
+                                      TextButton.icon(
+                                        onPressed: () {
+                                          _pageController.previousPage(
+                                            duration: const Duration(milliseconds: 300),
+                                            curve: Curves.easeInOut,
+                                          );
+                                        },
+                                        icon: const Icon(Icons.arrow_back),
+                                        label: const Text('Back'),
+                                      )
+                                    else
+                                      const SizedBox(),
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 48,
+                                      ),
+                                      child: ElevatedButton(
+                                        onPressed: _currentQuestionAnswered()
+                                            ? () {
+                                                if (_currentPage < 5) {
+                                                  _goToNextQuestion();
+                                                } else {
+                                                  _submitAnswers(
+                                                      currentPlayer.id, players, game);
+                                                }
+                                              }
+                                            : null,
+                                        child: Text(
+                                          _currentPage < 5 ? 'Next' : 'Submit',
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   );
                 },
-              );
-            },
+              ),
+              IgnorePointer(
+                ignoring: !_isStartingGame,
+                child: AnimatedOpacity(
+                  opacity: _isStartingGame ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  child: const LoadingOverlay(
+                    message: '✨ Gathering stardust... preparing questions all about you ✨',
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },

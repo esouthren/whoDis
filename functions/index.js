@@ -2,14 +2,17 @@ const functions = require('firebase-functions');
 const {onCall, onRequest} = require('firebase-functions/v2/https');
 const {defineSecret} = require('firebase-functions/params');
 const admin = require('firebase-admin');
+const {GoogleGenAI} = require('@google/genai');
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-// Define the secret
+// Define the secrets
 const openaiApiKey = defineSecret('OPENAI');
+const nanobananaApiKey = defineSecret('NANOBANANA');
+const slackApiKey = defineSecret('SLACK');
 
 // OpenAI API endpoint
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
@@ -278,6 +281,153 @@ exports.generatePlayerQuestionsHttp = onRequest(
         error: 'Failed to generate questions',
         message: error.message
       });
+    }
+  }
+);
+
+/**
+ * Cloud function to generate a cartoon character portrait based on user's Slack profile picture
+ * and their answers to 6 questions
+ * 
+ * Parameters:
+ * - email: User's email address (for Slack lookup)
+ * - questionsAndAnswers: String containing 6 questions and answers
+ * 
+ * Returns:
+ * - imageUrl: URL of the generated image stored in Firebase Storage
+ */
+exports.generateCharacterPortrait = onCall(
+  {secrets: [nanobananaApiKey, slackApiKey]},
+  async (request) => {
+    try {
+      const {email, questionsAndAnswers} = request.data;
+
+      // Validate input
+      if (!email || !questionsAndAnswers) {
+        throw new functions.https.HttpsError(
+          'invalid-argument',
+          'email and questionsAndAnswers are required'
+        );
+      }
+
+      console.log(`Generating character portrait for email: ${email}`);
+
+      // Step 1: Get Slack user profile picture
+      const slackResponse = await fetch(
+        `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${slackApiKey.value()}`,
+          },
+        }
+      );
+
+      if (!slackResponse.ok) {
+        throw new Error(`Slack API request failed: ${slackResponse.status}`);
+      }
+
+      const slackData = await slackResponse.json();
+      
+      if (!slackData.ok) {
+        throw new Error(`Slack API error: ${slackData.error || 'Unknown error'}`);
+      }
+
+      const userId = slackData.user.id;
+      const profileImageUrl = slackData.user.profile?.image_512 || 
+                              slackData.user.profile?.image_192 || 
+                              slackData.user.profile?.image_72;
+
+      if (!profileImageUrl) {
+        throw new Error('No profile image found for user');
+      }
+
+      console.log(`Found Slack profile image: ${profileImageUrl}`);
+
+      // Step 2: Download the Slack profile image
+      const imageResponse = await fetch(profileImageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to download profile image: ${imageResponse.status}`);
+      }
+      
+      const imageBuffer = await imageResponse.arrayBuffer();
+      const imageBase64 = Buffer.from(imageBuffer).toString('base64');
+      const imageMimeType = imageResponse.headers.get('content-type') || 'image/png';
+
+      // Step 3: Generate image with Nano Banana (Gemini)
+      const ai = new GoogleGenAI({apiKey: nanobananaApiKey.value()});
+
+      // Create prompt incorporating the questions and answers
+      const prompt = `Create a cartoon character portrait that incorporates the following preferences and answers:
+${questionsAndAnswers}
+
+The character should visually represent these preferences. For example, if they prefer coffee over tea, show them holding a coffee. Make it a fun, colorful cartoon style portrait.`;
+
+      console.log('Generating image with Nano Banana...');
+
+      const geminiResponse = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: [
+          prompt,
+          {
+            inlineData: {
+              data: imageBase64,
+              mimeType: imageMimeType,
+            },
+          },
+        ],
+      });
+
+      // Extract the generated image from the response
+      let generatedImageBuffer = null;
+      for (const part of geminiResponse.candidates[0].content.parts) {
+        if (part.text) {
+          console.log('Gemini text response:', part.text);
+        } else if (part.inlineData) {
+          generatedImageBuffer = Buffer.from(part.inlineData.data, 'base64');
+          break;
+        }
+      }
+
+      if (!generatedImageBuffer) {
+        throw new Error('No image generated in Gemini response');
+      }
+
+      console.log('Image generated successfully, uploading to Firebase Storage...');
+
+      // Step 4: Upload to Firebase Storage
+      const bucket = admin.storage().bucket('gs://xni75w9l4qcdp0p0xnbergczhoxgud.firebasestorage.app');
+      const fileName = `character-portraits/${userId}_${Date.now()}.png`;
+      const file = bucket.file(fileName);
+
+      await file.save(generatedImageBuffer, {
+        metadata: {
+          contentType: 'image/png',
+        },
+      });
+
+      // Make the file publicly accessible and get the URL
+      await file.makePublic();
+      const imageUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+
+      console.log(`Image uploaded successfully: ${imageUrl}`);
+
+      return {
+        success: true,
+        imageUrl: imageUrl,
+      };
+
+    } catch (error) {
+      console.error('Error generating character portrait:', error);
+      
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+      
+      throw new functions.https.HttpsError(
+        'internal',
+        'Failed to generate character portrait',
+        error.message
+      );
     }
   }
 );

@@ -26,6 +26,7 @@ class _StartScreenState extends State<StartScreen>
   User? _currentUser;
   String? _savedUsername;
   bool _isLoading = true;
+  bool _isCogHovered = false;
 
   @override
   void initState() {
@@ -63,13 +64,13 @@ class _StartScreenState extends State<StartScreen>
   Future<void> _checkAuthState() async {
     final user = FirebaseAuth.instance.currentUser;
     String? savedUsername;
-    
+
     if (user != null) {
       final userService = UserService();
       final appUser = await userService.getUser(user.uid);
       savedUsername = appUser?.username;
     }
-    
+
     setState(() {
       _currentUser = user;
       _savedUsername = savedUsername;
@@ -95,84 +96,117 @@ class _StartScreenState extends State<StartScreen>
               elevation: 0,
               actions: [
                 IconButton(
-                  icon: Icon(Icons.logout, color: Theme.of(context).colorScheme.secondary),
+                  icon: Icon(Icons.logout,
+                      color: Theme.of(context).colorScheme.secondary),
                   onPressed: _signOut,
                   tooltip: 'Sign Out',
                 ),
               ],
             )
           : null,
-      body: Center(
-        child: Container(
-          constraints: BoxConstraints(maxWidth: 800),
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                AnimatedBuilder(
-                  animation: _controller,
-                  builder: (context, child) => Transform.scale(
-                    scale: _scaleAnimation.value,
-                    child: Transform.rotate(
-                      angle: _rotationAnimation.value * 3.14159,
-                      child: SizedBox(
-                        height: imageHeight,
-                        child: Image.network(
-                          'https://firebasestorage.googleapis.com/v0/b/xni75w9l4qcdp0p0xnbergczhoxgud.firebasestorage.app/o/whodis.png?alt=media',
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) => Icon(
-                            Icons.question_mark,
-                            size: imageHeight * 0.5,
+      body: Stack(
+        children: [
+          Center(
+            child: Container(
+              constraints: BoxConstraints(maxWidth: 800),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AnimatedBuilder(
+                      animation: _controller,
+                      builder: (context, child) => Transform.scale(
+                        scale: _scaleAnimation.value,
+                        child: Transform.rotate(
+                          angle: _rotationAnimation.value * 3.14159,
+                          child: SizedBox(
+                            height: imageHeight,
+                            child: Image.network(
+                              'https://firebasestorage.googleapis.com/v0/b/xni75w9l4qcdp0p0xnbergczhoxgud.firebasestorage.app/o/whodis.png?alt=media',
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Icon(
+                                Icons.question_mark,
+                                size: imageHeight * 0.5,
+                              ),
+                            ),
                           ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 48),
+                    AnimatedBuilder(
+                      animation: _buttonOpacityAnimation,
+                      builder: (context, child) => Opacity(
+                        opacity: _buttonOpacityAnimation.value,
+                        child: _isLoading
+                            ? CircularProgressIndicator()
+                            : _currentUser == null
+                                ? _buildGoogleSignInButton()
+                                : Column(
+                                    children: [
+                                      PrimaryButton(
+                                          onPressed: () => _startGame(context),
+                                          text: 'Start Game'),
+                                      const SizedBox(height: 16),
+                                           SecondaryButton(
+                                    onPressed: () => _showJoinDialog(context),
+                                    text: 'Join Game',
+                                  ),
+                                    ],
+                                  ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: MouseRegion(
+              onEnter: (_) => setState(() => _isCogHovered = true),
+              onExit: (_) => setState(() => _isCogHovered = false),
+              child: SizedBox(
+                width: 80,
+                height: 80,
+                child: Align(
+                  alignment: Alignment.bottomRight,
+                  child: AnimatedOpacity(
+                    opacity: _isCogHovered ? 1 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeInOut,
+                    child: Tooltip(
+                      message: 'Top Secret!',
+                      child: FloatingActionButton.small(
+                        heroTag: 'testingFab',
+                        backgroundColor: Theme.of(context).colorScheme.tertiary,
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const TestingScreen(),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.settings,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 48),
-                AnimatedBuilder(
-                  animation: _buttonOpacityAnimation,
-                  builder: (context, child) => Opacity(
-                    opacity: _buttonOpacityAnimation.value,
-                    child: _isLoading
-                        ? CircularProgressIndicator()
-                        : _currentUser == null
-                            ? _buildGoogleSignInButton()
-                            : Column(
-                                children: [
-                                  PrimaryButton(
-                                    onPressed: () => _startGame(context),
-                                    text: 'Start Game',
-                                  ),
-                                  const SizedBox(height: 16),
-                                  SecondaryButton(
-                                    onPressed: () => _showJoinDialog(context),
-                                    text: 'Join Game',
-                                  ),
-                                  const SizedBox(height: 16),
-                                  SecondaryButton(
-                                    onPressed: () => Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => const TestingScreen(),
-                                      ),
-                                    ),
-                                    text: 'Testing',
-                                  ),
-                                ],
-                              ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 
   Future<void> _startGame(BuildContext context) async {
-    final usernameController = TextEditingController(text: _savedUsername ?? '');
+    final usernameController =
+        TextEditingController(text: _savedUsername ?? '');
     final timerController = TextEditingController(text: '10');
     final roundsController = TextEditingController();
 
@@ -196,7 +230,7 @@ class _StartScreenState extends State<StartScreen>
               autofocus: true,
             ),
             SizedBox(height: 16),
-            Text('Time between question reveal (seconds)'),
+            Text('Time\u00A0between question reveal (seconds)'),
             SizedBox(height: 12),
             TextField(
               controller: timerController,
@@ -252,9 +286,10 @@ class _StartScreenState extends State<StartScreen>
 
     final username = result['username']!;
     final timerDuration = int.tryParse(result['timer'] ?? '12') ?? 12;
-    final numberOfRounds = result['rounds'] != null && result['rounds']!.isNotEmpty
-        ? int.tryParse(result['rounds']!)
-        : null;
+    final numberOfRounds =
+        result['rounds'] != null && result['rounds']!.isNotEmpty
+            ? int.tryParse(result['rounds']!)
+            : null;
 
     try {
       final userId = _currentUser!.uid;
@@ -346,7 +381,8 @@ class _StartScreenState extends State<StartScreen>
 
   Future<void> _showJoinDialog(BuildContext context) async {
     final passwordController = TextEditingController();
-    final usernameController = TextEditingController(text: _savedUsername ?? '');
+    final usernameController =
+        TextEditingController(text: _savedUsername ?? '');
     final theme = Theme.of(context);
 
     final result = await showDialog<Map<String, String>>(
@@ -406,8 +442,8 @@ class _StartScreenState extends State<StartScreen>
       ),
     );
 
-    if (result == null || 
-        result['password'] == null || 
+    if (result == null ||
+        result['password'] == null ||
         result['password']!.isEmpty ||
         result['username'] == null ||
         result['username']!.isEmpty) return;
@@ -507,11 +543,13 @@ class _StartScreenState extends State<StartScreen>
     try {
       final GoogleAuthProvider googleProvider = GoogleAuthProvider();
       UserCredential userCredential;
-      
+
       if (kIsWeb) {
-        userCredential = await FirebaseAuth.instance.signInWithPopup(googleProvider);
+        userCredential =
+            await FirebaseAuth.instance.signInWithPopup(googleProvider);
       } else {
-        userCredential = await FirebaseAuth.instance.signInWithProvider(googleProvider);
+        userCredential =
+            await FirebaseAuth.instance.signInWithProvider(googleProvider);
       }
 
       setState(() => _currentUser = userCredential.user);
