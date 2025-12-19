@@ -4,6 +4,8 @@ import 'package:whodis/models/player.dart';
 import 'package:whodis/services/player_service.dart';
 import 'package:whodis/services/game_service.dart';
 import 'package:whodis/services/user_service.dart';
+import 'package:whodis/utils/save_image.dart';
+import 'package:whodis/utils/open_in_new_tab.dart';
 
 enum ImageSize {
   large(450),
@@ -192,7 +194,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 }
 
-class _PlayerResultCard extends StatelessWidget {
+class _PlayerResultCard extends StatefulWidget {
   final int position;
   final Player player;
   final ImageSize imageSize;
@@ -204,10 +206,34 @@ class _PlayerResultCard extends StatelessWidget {
   });
 
   @override
+  State<_PlayerResultCard> createState() => _PlayerResultCardState();
+}
+
+class _PlayerResultCardState extends State<_PlayerResultCard> {
+  bool _hovering = false;
+
+  Future<void> _download() async {
+    final imageUrl = widget.player.image;
+    if (imageUrl == null || imageUrl.isEmpty) return;
+    try {
+      // Open the image in a new tab (web) instead of navigating this tab.
+      await openImageInNewTab(imageUrl);
+      if (!mounted) return;
+
+    } catch (e) {
+      debugPrint('Download failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to open image')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cardPadding = imageSize == ImageSize.large ? 24.0 : 16.0;
-    final imageSizeValue = imageSize.size;
+    final cardPadding = widget.imageSize == ImageSize.large ? 24.0 : 16.0;
+    final imageSizeValue = widget.imageSize.size;
 
     return Container(
       decoration: BoxDecoration(
@@ -219,27 +245,65 @@ class _PlayerResultCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: SizedBox(
-              width: imageSizeValue,
-              height: imageSizeValue,
-              child: _PlayerImage(imageUrl: player.image),
+          MouseRegion(
+            onEnter: (_) => setState(() => _hovering = true),
+            onExit: (_) => setState(() => _hovering = false),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: (widget.player.image != null && widget.player.image!.isNotEmpty)
+                  ? _download
+                  : null,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Stack(
+                  children: [
+                    SizedBox(
+                      width: imageSizeValue,
+                      height: imageSizeValue,
+                      child: _PlayerImage(imageUrl: widget.player.image),
+                    ),
+                    // Decorative, click-through icon; parent GestureDetector handles taps
+                    if (widget.player.image != null && widget.player.image!.isNotEmpty)
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: AnimatedOpacity(
+                          opacity: _hovering ? 1 : 0,
+                          duration: const Duration(milliseconds: 150),
+                          child: IgnorePointer(
+                            ignoring: true,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surface.withValues(alpha: 0.5),
+                                shape: BoxShape.circle,
+                              ),
+                              padding: const EdgeInsets.all(8),
+                              child: Icon(
+                                Icons.download,
+                                color: theme.colorScheme.onSurface,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 16),
-          position >= 4
+          widget.position >= 4
               ? Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Flexible(
                       child: Text(
-                        player.username,
+                        widget.player.username,
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontSize:
-                              ((theme.textTheme.titleLarge?.fontSize ?? 20) *
-                                  0.8),
+                              ((theme.textTheme.titleLarge?.fontSize ?? 20) * 0.8),
                         ),
                         textAlign: TextAlign.center,
                         overflow: TextOverflow.ellipsis,
@@ -247,7 +311,7 @@ class _PlayerResultCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '#$position',
+                      '#${widget.position}',
                       style: theme.textTheme.titleMedium?.copyWith(
                         color: theme.colorScheme.secondary,
                         fontSize:
@@ -256,7 +320,7 @@ class _PlayerResultCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '${player.score} pts',
+                      '${widget.player.score} pts',
                       style: theme.textTheme.titleMedium?.copyWith(
                         color: theme.colorScheme.secondary,
                         fontSize:
@@ -269,18 +333,18 @@ class _PlayerResultCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      player.username,
-                      style: (imageSize == ImageSize.large
+                      widget.player.username,
+                      style: (widget.imageSize == ImageSize.large
                               ? theme.textTheme.headlineSmall
                               : theme.textTheme.titleLarge)
                           ?.copyWith(
-                        fontSize: position >= 4
-                            ? ((imageSize == ImageSize.large
-                                            ? theme.textTheme.headlineSmall
-                                            : theme.textTheme.titleLarge)
-                                        ?.fontSize ??
-                                    20) *
-                                0.8
+                        fontSize: widget.position >= 4
+                            ? (((widget.imageSize == ImageSize.large
+                                                ? theme.textTheme.headlineSmall
+                                                : theme.textTheme.titleLarge)
+                                            ?.fontSize ??
+                                        20) *
+                                    0.8)
                             : null,
                       ),
                       textAlign: TextAlign.center,
@@ -290,25 +354,21 @@ class _PlayerResultCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          '#$position',
+                          '#${widget.position}',
                           style: theme.textTheme.titleMedium?.copyWith(
                             color: theme.colorScheme.secondary,
-                            fontSize: position >= 4
-                                ? (theme.textTheme.titleMedium?.fontSize ??
-                                        16) *
-                                    0.8
+                            fontSize: widget.position >= 4
+                                ? (theme.textTheme.titleMedium?.fontSize ?? 16) * 0.8
                                 : null,
                           ),
                         ),
                         const SizedBox(width: 16),
                         Text(
-                          '${player.score} pts',
+                          '${widget.player.score} pts',
                           style: theme.textTheme.titleMedium?.copyWith(
                             color: theme.colorScheme.secondary,
-                            fontSize: position >= 4
-                                ? (theme.textTheme.titleMedium?.fontSize ??
-                                        16) *
-                                    0.8
+                            fontSize: widget.position >= 4
+                                ? (theme.textTheme.titleMedium?.fontSize ?? 16) * 0.8
                                 : null,
                           ),
                         ),
@@ -376,3 +436,41 @@ class _PlayerImage extends StatelessWidget {
     );
   }
 }
+
+class _DownloadButton extends StatelessWidget {
+  final String imageUrl;
+  final String? suggestedName;
+  const _DownloadButton({required this.imageUrl, this.suggestedName});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface.withValues(alpha: 0.5),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () async {
+          try {
+            await saveImageFromUrl(imageUrl, fileName: suggestedName);
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Downloading ${suggestedName ?? 'image'}')),
+            );
+          } catch (e) {
+            debugPrint('Download failed: $e');
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to download image')),
+            );
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Tooltip(message: 'Open image in new tab', child: Icon(Icons.download, color: theme.colorScheme.onSurface, size: 20),),
+        ),
+      ),
+    );
+  }
+}
+

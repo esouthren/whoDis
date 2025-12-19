@@ -405,7 +405,7 @@ The character should visually represent these preferences. For example, if they 
 Create the image as a square, 500x500 pixels. It should be in ${style} style.
 
 The logo of the Dreamflow is at https://firebasestorage.googleapis.com/v0/b/xni75w9l4qcdp0p0xnbergczhoxgud.firebasestorage.app/o/df_logo.png?alt=media&token=dae9f105-8410-4338-b073-22c5fb160695. 
-Consider incorporating the logo into the image, such as on the character's shirt or mug.
+Consider incorporating the logo into the image, such as on the character's shirt or mug. If you do, try to make the logo as accurate as possible.
 `;
 
       console.log('Generating image with Nano Banana...');
