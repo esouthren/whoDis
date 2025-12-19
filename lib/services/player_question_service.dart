@@ -12,22 +12,29 @@ class PlayerQuestionService {
     print('[PlayerQuestionService] savePlayerQuestions - gameId: $gameId, playerId: $playerId, questions count: ${questions.length}');
     
     try {
+      final colRef = _firestore
+          .collection('games')
+          .doc(gameId)
+          .collection('players')
+          .doc(playerId)
+          .collection('player_questions');
+
+      // Delete all existing docs to avoid duplicates
+      final existing = await colRef.get();
       final batch = _firestore.batch();
-      
-      for (final question in questions) {
-        final questionRef = _firestore
-            .collection('games')
-            .doc(gameId)
-            .collection('players')
-            .doc(playerId)
-            .collection('player_questions')
-            .doc();
-        
-        batch.set(questionRef, question.copyWith(id: questionRef.id).toJson());
+      for (final d in existing.docs) {
+        batch.delete(d.reference);
       }
-      
+
+      // Write provided questions with deterministic IDs per order
+      for (final question in questions) {
+        final docId = 'order_${question.order}';
+        final questionRef = colRef.doc(docId);
+        batch.set(questionRef, question.copyWith(id: docId).toJson());
+      }
+
       await batch.commit();
-      print('[PlayerQuestionService] savePlayerQuestions - SUCCESS');
+      print('[PlayerQuestionService] savePlayerQuestions - SUCCESS (replaced collection with ${questions.length} docs)');
     } catch (e, stackTrace) {
       print('[PlayerQuestionService] savePlayerQuestions - ERROR: $e');
       print('[PlayerQuestionService] savePlayerQuestions - STACK TRACE: $stackTrace');

@@ -1,8 +1,8 @@
 const functions = require('firebase-functions');
-const {onCall, onRequest} = require('firebase-functions/v2/https');
-const {defineSecret} = require('firebase-functions/params');
+const { onCall, onRequest } = require('firebase-functions/v2/https');
+const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
-const {GoogleGenAI} = require('@google/genai');
+const { GoogleGenAI } = require('@google/genai');
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -41,13 +41,13 @@ DIFFICULTY LEVELS:
 REQUIREMENTS:
 - Questions must be answerable by anyone
 - Questions should encourage diverse, interesting answers
-- Avoid yes/no questions
+- Avoid yes/no questions. Ensure that questions can be answered in a few words rather than a paragraph.
 - Keep questions concise and clear
 - Make questions feel conversational and fun
 - Ensure variety across topics (don't repeat themes)
 - Questions should be workplace-appropriate and should not make anyone feel embarrassment.
 - Questions should be suitable for a multi-country audience and not be too US or Europe specific. 
-- Players are software engineers, so some questions can have a slight tech focus, such as 'what's the first language you learned'.
+- Players are software engineers, so some questions can have a tech focus. 
 
 Return ONLY a valid JSON array with ${totalQuestions} questions in this format:
 [
@@ -78,7 +78,7 @@ Generate ${totalQuestions} unique questions now (${hardCount} hard, ${mediumCoun
           content: prompt
         }
       ],
-      temperature: 0.9, // Higher creativity for variety
+      temperature: 1.2, // Higher creativity for more variance and randomness
       max_tokens: 500,
     }),
   });
@@ -112,7 +112,7 @@ Generate ${totalQuestions} unique questions now (${hardCount} hard, ${mediumCoun
   }
 
   // Validate each question has required fields and count difficulties
-  const difficultyCounts = {hard: 0, medium: 0, easy: 0};
+  const difficultyCounts = { hard: 0, medium: 0, easy: 0 };
   for (const q of questions) {
     if (!q.text || !q.difficulty) {
       throw new Error('Questions missing required fields');
@@ -141,10 +141,10 @@ Generate ${totalQuestions} unique questions now (${hardCount} hard, ${mediumCoun
  * Firebase Callable Function (for Flutter app)
  */
 exports.generatePlayerQuestions = onCall(
-  {secrets: [openaiApiKey]},
+  { secrets: [openaiApiKey] },
   async (request) => {
     try {
-      const {numberOfPlayers} = request.data;
+      const { numberOfPlayers } = request.data;
 
       if (!numberOfPlayers || numberOfPlayers < 1) {
         throw new functions.https.HttpsError(
@@ -157,11 +157,11 @@ exports.generatePlayerQuestions = onCall(
 
     } catch (error) {
       console.error('Error generating questions:', error);
-      
+
       if (error instanceof functions.https.HttpsError) {
         throw error;
       }
-      
+
       throw new functions.https.HttpsError(
         'internal',
         'Failed to generate questions',
@@ -175,7 +175,7 @@ exports.generatePlayerQuestions = onCall(
  * HTTP Function that accepts GCP identity tokens (for testing with curl)
  */
 exports.generatePlayerQuestionsHttp = onRequest(
-  {secrets: [openaiApiKey]},
+  { secrets: [openaiApiKey] },
   async (req, res) => {
     // Enable CORS
     res.set('Access-Control-Allow-Origin', '*');
@@ -191,25 +191,25 @@ exports.generatePlayerQuestionsHttp = onRequest(
       // Verify GCP identity token or Firebase ID token
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        res.status(401).json({error: 'Missing or invalid Authorization header'});
+        res.status(401).json({ error: 'Missing or invalid Authorization header' });
         return;
       }
 
       const token = authHeader.split('Bearer ')[1];
-      
+
       // Verify token - try GCP identity token first, then Firebase ID token
       let tokenVerified = false;
       let tokenType = 'unknown';
-      
+
       // First, try to verify as GCP identity token (from gcloud auth print-identity-token)
       try {
         const tokenInfoResponse = await fetch(
           `https://oauth2.googleapis.com/tokeninfo?id_token=${token}`
         );
-        
+
         if (tokenInfoResponse.ok) {
           const tokenInfo = await tokenInfoResponse.json();
-          
+
           // If tokeninfo endpoint returns successfully, it's a valid Google/GCP identity token
           // Accept it regardless of the specific audience format
           console.log('Verified as GCP/Google identity token');
@@ -229,7 +229,7 @@ exports.generatePlayerQuestionsHttp = onRequest(
       } catch (gcpError) {
         console.log('GCP token verification failed, trying Firebase token:', gcpError.message);
       }
-      
+
       // If GCP verification failed, try Firebase ID token
       // IMPORTANT: Only attempt Firebase verification if GCP verification completely failed
       if (!tokenVerified && tokenType !== 'gcp') {
@@ -245,7 +245,7 @@ exports.generatePlayerQuestionsHttp = onRequest(
       } else if (tokenVerified && tokenType === 'gcp') {
         console.log('Skipping Firebase verification - already verified as GCP token');
       }
-      
+
       // If neither verification worked, reject the request
       if (!tokenVerified) {
         res.status(401).json({
@@ -292,23 +292,36 @@ exports.generatePlayerQuestionsHttp = onRequest(
  * Parameters:
  * - email: User's email address (for Slack lookup)
  * - questionsAndAnswers: String containing 6 questions and answers
+ * - gameDocumentRef: (Optional) Game document ID/path to update player document
+ * - playerDocumentId: (Optional) Player document ID in the players subcollection
+ * - playerEmail: (Optional) Player email for validation/logging
  * 
  * Returns:
  * - imageUrl: URL of the generated image stored in Firebase Storage
+ * - updated: (If optional params provided) Whether the Firestore document was updated
  */
 exports.generateCharacterPortrait = onCall(
-  {secrets: [nanobananaApiKey, slackApiKey]},
+  { secrets: [nanobananaApiKey, slackApiKey] },
   async (request) => {
     try {
-      const {email, questionsAndAnswers} = request.data;
+      const {
+        email,
+        questionsAndAnswers,
+        gameDocumentRef,
+        playerDocumentId,
+        playerEmail,
+      } = request.data;
 
-      // Validate input
+      // Validate required input
       if (!email || !questionsAndAnswers) {
         throw new functions.https.HttpsError(
           'invalid-argument',
           'email and questionsAndAnswers are required'
         );
       }
+
+      // Check if optional Firestore update parameters are provided
+      const shouldUpdateFirestore = gameDocumentRef && playerDocumentId;
 
       console.log(`Generating character portrait for email: ${email}`);
 
@@ -327,15 +340,15 @@ exports.generateCharacterPortrait = onCall(
       }
 
       const slackData = await slackResponse.json();
-      
+
       if (!slackData.ok) {
         throw new Error(`Slack API error: ${slackData.error || 'Unknown error'}`);
       }
 
       const userId = slackData.user.id;
-      const profileImageUrl = slackData.user.profile?.image_512 || 
-                              slackData.user.profile?.image_192 || 
-                              slackData.user.profile?.image_72;
+      const profileImageUrl = slackData.user.profile?.image_512 ||
+        slackData.user.profile?.image_192 ||
+        slackData.user.profile?.image_72;
 
       if (!profileImageUrl) {
         throw new Error('No profile image found for user');
@@ -348,19 +361,51 @@ exports.generateCharacterPortrait = onCall(
       if (!imageResponse.ok) {
         throw new Error(`Failed to download profile image: ${imageResponse.status}`);
       }
-      
+
       const imageBuffer = await imageResponse.arrayBuffer();
       const imageBase64 = Buffer.from(imageBuffer).toString('base64');
       const imageMimeType = imageResponse.headers.get('content-type') || 'image/png';
 
       // Step 3: Generate image with Nano Banana (Gemini)
-      const ai = new GoogleGenAI({apiKey: nanobananaApiKey.value()});
+      const ai = new GoogleGenAI({ apiKey: nanobananaApiKey.value() });
+
+      const styles = [
+        'The Simpsons',
+        'Adventure Time',
+        'Family Guy',
+        'Studio Ghibli',
+        'Anime',
+        'Russian/Soviet',
+        'Rubber hose',
+        'Pixar',
+        'Kawaii',
+        'Cyberpunk',
+        'My Little Pony',
+        'Comic book',
+        'Lego (3D)',
+        'Minecraft',
+        'Steamboat Willie',
+        'The Flintstones',
+        'The Jetsons',
+        'The Powerpuff Girls',
+        'The Ren & Stimpy Show',
+        'The Smurfs',
+        'Hey Arthur'
+      ];
+
+      const style = styles[Math.floor(Math.random() * styles.length)];
 
       // Create prompt incorporating the questions and answers
       const prompt = `Create a cartoon character portrait that incorporates the following preferences and answers:
 ${questionsAndAnswers}
 
-The character should visually represent these preferences. For example, if they prefer coffee over tea, show them holding a coffee. Make it a fun, colorful cartoon style portrait.`;
+The character should visually represent these preferences. For example, if they prefer coffee over tea, show them holding a coffee.
+
+Create the image as a square, 500x500 pixels. It should be in ${style} style.
+
+The logo of the Dreamflow is at https://firebasestorage.googleapis.com/v0/b/xni75w9l4qcdp0p0xnbergczhoxgud.firebasestorage.app/o/df_logo.png?alt=media&token=dae9f105-8410-4338-b073-22c5fb160695. 
+Consider incorporating the logo into the image, such as on the character's shirt or mug.
+`;
 
       console.log('Generating image with Nano Banana...');
 
@@ -411,18 +456,50 @@ The character should visually represent these preferences. For example, if they 
 
       console.log(`Image uploaded successfully: ${imageUrl}`);
 
-      return {
+      // Step 5: Update Firestore if optional parameters are provided
+      let firestoreUpdated = false;
+      if (shouldUpdateFirestore) {
+        try {
+          const playerRef = admin
+            .firestore()
+            .collection('games')
+            .doc(gameDocumentRef)
+            .collection('players')
+            .doc(playerDocumentId);
+
+          await playerRef.update({
+            image: imageUrl,
+          });
+
+          firestoreUpdated = true;
+          console.log(
+            `Updated player document: games/${gameDocumentRef}/players/${playerDocumentId}`
+          );
+        } catch (firestoreError) {
+          console.error('Error updating Firestore document:', firestoreError);
+          // Don't throw error - image was generated successfully, just log the Firestore error
+          // This allows the function to still return the imageUrl even if Firestore update fails
+        }
+      }
+
+      const result = {
         success: true,
         imageUrl: imageUrl,
       };
 
+      if (shouldUpdateFirestore) {
+        result.updated = firestoreUpdated;
+      }
+
+      return result;
+
     } catch (error) {
       console.error('Error generating character portrait:', error);
-      
+
       if (error instanceof functions.https.HttpsError) {
         throw error;
       }
-      
+
       throw new functions.https.HttpsError(
         'internal',
         'Failed to generate character portrait',

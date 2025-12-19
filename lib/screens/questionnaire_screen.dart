@@ -13,7 +13,7 @@ import 'package:whodis/services/round_questions_service.dart';
 import 'package:whodis/services/question_generation_service.dart';
 import 'package:whodis/screens/game_screen.dart';
 import 'package:whodis/screens/countdown_screen.dart';
-import 'package:whodis/widgets/loading_overlay.dart';
+import 'package:whodis/services/image_generation_service.dart';
 
 class QuestionnaireScreen extends StatefulWidget {
   final String gameId;
@@ -431,17 +431,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                   );
                 },
               ),
-              IgnorePointer(
-                ignoring: !_isStartingGame,
-                child: AnimatedOpacity(
-                  opacity: _isStartingGame ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  child: const LoadingOverlay(
-                    message: '✨ Gathering stardust... preparing questions all about you ✨',
-                  ),
-                ),
-              ),
             ],
           ),
         );
@@ -571,6 +560,29 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       print('[QuestionnaireScreen] _startGameAsAdmin - Setting current round to 0');
       await gameService.updateCurrentRound(widget.gameId, 0);
       print('[QuestionnaireScreen] _startGameAsAdmin - SUCCESS');
+
+      // Fire off portrait generation for each player (non-blocking)
+      for (final p in players) {
+        final email = p.email;
+        if (email != null && email.trim().isNotEmpty) {
+          debugPrint('[QuestionnaireScreen] trigger portrait generation for playerId=${p.id}, email=$email');
+          // Build Q&A string from saved player questions
+          final pQuestions = await playerQuestionService.getPlayerQuestions(widget.gameId, p.id);
+          pQuestions.sort((a, b) => a.order.compareTo(b.order));
+          final qa = pQuestions
+              .where((pq) => pq.questionText.trim().isNotEmpty && pq.answer.trim().isNotEmpty)
+              .take(6)
+              .map((pq) => '${pq.questionText.trim()} ${pq.answer.trim()}')
+              .join('\n');
+
+          generateAndSavePortraitForPlayerFn(
+            gameId: widget.gameId,
+            playerId: p.id,
+            email: email,
+            questionsAndAnswers: qa,
+          );
+        }
+      }
     } catch (e, stackTrace) {
       print('[QuestionnaireScreen] _startGameAsAdmin - ERROR: $e');
       print('[QuestionnaireScreen] _startGameAsAdmin - STACK TRACE: $stackTrace');

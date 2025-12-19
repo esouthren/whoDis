@@ -13,7 +13,7 @@ class LoadingOverlay extends StatelessWidget {
       children: [
         // Dim background
         Positioned.fill(
-          child: Container(color: scheme.scrim.withValues(alpha: 0.5)),
+          child: Container(color: scheme.onPrimaryContainer),
         ),
         // Centered card with spinner and message
         Center(

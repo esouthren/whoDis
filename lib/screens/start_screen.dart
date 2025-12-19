@@ -306,6 +306,7 @@ class _StartScreenState extends State<StartScreen>
         gameId: game.id,
         userId: userId,
         username: username,
+        email: _currentUser?.email,
       );
 
       final userService = UserService();
@@ -503,6 +504,7 @@ class _StartScreenState extends State<StartScreen>
         gameId: game.id,
         userId: userId,
         username: username,
+        email: _currentUser?.email,
       );
 
       final userService = UserService();

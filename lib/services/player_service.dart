@@ -8,6 +8,7 @@ class PlayerService {
     required String gameId,
     required String userId,
     required String username,
+    String? email,
   }) async {
     print('[PlayerService] createPlayer - gameId: $gameId, userId: $userId, username: $username');
     final now = DateTime.now();
@@ -19,6 +20,7 @@ class PlayerService {
       username: username,
       createdAt: now,
       updatedAt: now,
+      email: email,
     );
 
     await playerRef.set(player.toJson());
