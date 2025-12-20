@@ -597,18 +597,24 @@ class QuestionsBlock extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: isRevealed
-                            ? Text(
-                                questionText,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyLarge!
-                                    .copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 22,
-                                    ),
-                              )
-                            : const SizedBox(height: 20),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(seconds: 1),
+                          switchInCurve: Curves.easeInOut,
+                          transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
+                          child: isRevealed
+                              ? Text(
+                                  questionText,
+                                  key: ValueKey('q_$questionIdx'),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyLarge!
+                                      .copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 22,
+                                      ),
+                                )
+                              : SizedBox(height: 20, key: ValueKey('q_placeholder_$questionIdx')),
+                        ),
                       ),
                       const SizedBox(width: 8),
                       if (isRevealed)
@@ -635,15 +641,22 @@ class QuestionsBlock extends StatelessWidget {
                         ),
                     ],
                   ),
-                  if (isRevealed)
-                    Text(
-                      answerText,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: Theme.of(context).colorScheme.secondary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 22,
-                          ),
-                    ),
+                  AnimatedSwitcher(
+                    duration: const Duration(seconds: 1),
+                    switchInCurve: Curves.easeInOut,
+                    transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
+                    child: isRevealed
+                        ? Text(
+                            answerText,
+                            key: ValueKey('a_$questionIdx'),
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                  color: Theme.of(context).colorScheme.secondary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 22,
+                                ),
+                          )
+                        : SizedBox.shrink(key: ValueKey('a_placeholder_$questionIdx')),
+                  ),
                 ],
               ),
             ),

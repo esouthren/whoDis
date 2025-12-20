@@ -20,18 +20,20 @@ const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 /**
  * Shared function to generate questions
  */
-async function generateQuestionsLogic(numberOfPlayers) {
-  const totalQuestions = numberOfPlayers * 6;
-  const hardCount = numberOfPlayers * 2;
-  const mediumCount = numberOfPlayers * 3;
-  const easyCount = numberOfPlayers * 1;
+async function generateQuestionsLogic() {
+  const functionStartTime = Date.now();
+  const totalQuestions = 6;
+  const hardCount = 2;
+  const mediumCount = 3;
+  const easyCount = 1;
 
-  console.log(`Generating ${totalQuestions} questions for ${numberOfPlayers} players (${hardCount} hard, ${mediumCount} medium, ${easyCount} easy)`);
+  console.log(`[DEBUG] Starting question generation for 1 player`);
+  console.log(`[DEBUG] Target: ${totalQuestions} questions (${hardCount} hard, ${mediumCount} medium, ${easyCount} easy)`);
 
   // Prepare the prompt for OpenAI
   const prompt = `You are a question generator for a social party game where players answer questions about themselves, and others try to guess who answered what.
 
-Generate exactly ${totalQuestions} unique questions for ${numberOfPlayers} players following these guidelines:
+Generate exactly ${totalQuestions} unique questions for 1 player following these guidelines:
 
 DIFFICULTY LEVELS:
 - HARD (${hardCount} questions): Abstract, subtle, preference-based questions that many people might answer similarly (e.g., "What time did you wake up this morning?", "Do you prefer coffee or tea?", "What's your favorite color?")
@@ -48,18 +50,34 @@ REQUIREMENTS:
 - Questions should be workplace-appropriate and should not make anyone feel embarrassment.
 - Questions should be suitable for a multi-country audience and not be too US or Europe specific. 
 - Players are software engineers, so some questions can have a tech focus. 
-
-Return ONLY a valid JSON array with ${totalQuestions} questions in this format:
+- Don't ask what people's job/skills are - as a group, we already know that.
+ 
+Return ONLY a valid JSON array with exactly ${totalQuestions} questions in this format:
 [
   {"text": "question text here", "difficulty": "hard"},
+  {"text": "question text here", "difficulty": "hard"},
   {"text": "question text here", "difficulty": "medium"},
-  {"text": "question text here", "difficulty": "easy"},
-  ...
+  {"text": "question text here", "difficulty": "medium"},
+  {"text": "question text here", "difficulty": "medium"},
+  {"text": "question text here", "difficulty": "easy"}
 ]
 
-Generate ${totalQuestions} unique questions now (${hardCount} hard, ${mediumCount} medium, ${easyCount} easy):`;
+Generate exactly ${totalQuestions} unique questions now (${hardCount} hard, ${mediumCount} medium, ${easyCount} easy):`;
+
+  // Calculate max_tokens for 6 questions
+  // Each question is roughly 80-100 tokens (JSON structure + question text + spacing)
+  // Be more generous with estimates to avoid truncation
+  const estimatedTokensPerQuestion = 100;
+  // Use 2x buffer for safety to ensure we never truncate
+  const maxTokens = Math.ceil(totalQuestions * estimatedTokensPerQuestion * 2);
+  // Cap at reasonable maximum (gpt-4o-mini supports up to 128k context)
+  const maxTokensCapped = Math.min(maxTokens, 4000);
+
+  console.log(`[DEBUG] Token allocation: max_tokens=${maxTokensCapped} for ${totalQuestions} questions`);
+  const apiCallStartTime = Date.now();
 
   // Call OpenAI API
+  console.log('[DEBUG] Calling OpenAI API...');
   const response = await fetch(OPENAI_API_URL, {
     method: 'POST',
     headers: {
@@ -79,7 +97,7 @@ Generate ${totalQuestions} unique questions now (${hardCount} hard, ${mediumCoun
         }
       ],
       temperature: 1.6, // Higher creativity for more variance and randomness
-      max_tokens: 500,
+      max_tokens: maxTokensCapped,
     }),
   });
 
@@ -90,25 +108,105 @@ Generate ${totalQuestions} unique questions now (${hardCount} hard, ${mediumCoun
   }
 
   const data = await response.json();
-  const content = data.choices[0].message.content.trim();
+  const apiCallDuration = Date.now() - apiCallStartTime;
 
-  console.log('Raw OpenAI response:', content);
+  const content = data.choices[0].message.content.trim();
+  const finishReason = data.choices[0].finish_reason;
+  const usage = data.usage;
+
+  console.log(`[DEBUG] OpenAI API call completed in ${apiCallDuration}ms`);
+  console.log(`[DEBUG] Response details:`);
+  console.log(`  - Response length: ${content.length} characters`);
+  console.log(`  - Finish reason: ${finishReason}`);
+  if (usage) {
+    console.log(`  - Token usage: prompt=${usage.prompt_tokens}, completion=${usage.completion_tokens}, total=${usage.total_tokens}`);
+    console.log(`  - Token efficiency: ${(usage.completion_tokens / totalQuestions).toFixed(1)} tokens per question`);
+  } else {
+    console.log(`  - Token usage: N/A`);
+  }
+
+  // Check if response was truncated (finish_reason will be 'length' if truncated)
+  if (finishReason === 'length') {
+    console.error('OpenAI response was truncated due to max_tokens limit');
+    console.error('Response length:', content.length);
+    console.error('Completion tokens used:', usage?.completion_tokens);
+    console.error('Max tokens allowed:', maxTokensCapped);
+    console.error('Last 500 chars:', content.slice(-500));
+    throw new Error(`Response was truncated. Generated ${totalQuestions} questions may require more tokens. Consider increasing max_tokens.`);
+  }
+
+  // Check if content appears to be truncated by looking for incomplete JSON
+  const trimmedContent = content.trim();
+  if (!trimmedContent.endsWith(']') && !trimmedContent.endsWith('}')) {
+    console.warn('Response may be truncated - does not end with valid JSON closing bracket');
+    console.warn('Last 200 chars:', trimmedContent.slice(-200));
+  }
 
   // Parse the JSON response
+  const parseStartTime = Date.now();
   let questions;
   try {
     // Remove markdown code blocks if present
-    const jsonContent = content.replace(/```json\n?|\n?```/g, '').trim();
+    let jsonContent = content.replace(/```json\n?|\n?```/g, '').trim();
+
+    // Try to extract JSON array if there's garbage text
+    // Find the first '[' and try to find the matching closing ']'
+    const firstBracket = jsonContent.indexOf('[');
+    if (firstBracket > 0) {
+      console.warn(`Found text before JSON array at position ${firstBracket}, attempting to extract JSON`);
+    }
+
+    if (firstBracket >= 0) {
+      // Extract from first bracket onwards
+      jsonContent = jsonContent.substring(firstBracket);
+
+      // Try to find the last valid closing bracket
+      let bracketCount = 0;
+      let lastValidBracket = -1;
+      for (let i = 0; i < jsonContent.length; i++) {
+        if (jsonContent[i] === '[') bracketCount++;
+        if (jsonContent[i] === ']') {
+          bracketCount--;
+          if (bracketCount === 0) {
+            lastValidBracket = i;
+          }
+        }
+      }
+
+      if (lastValidBracket > 0 && bracketCount !== 0) {
+        console.warn(`Unbalanced brackets detected, truncating at position ${lastValidBracket + 1}`);
+        jsonContent = jsonContent.substring(0, lastValidBracket + 1);
+      }
+    }
+
     questions = JSON.parse(jsonContent);
+    const parseDuration = Date.now() - parseStartTime;
+    console.log(`[DEBUG] JSON parsing completed in ${parseDuration}ms`);
   } catch (parseError) {
-    console.error('Failed to parse OpenAI response:', content);
-    throw new Error('Failed to parse questions from OpenAI response');
+    const parseDuration = Date.now() - parseStartTime;
+    console.error(`[DEBUG] JSON parsing failed after ${parseDuration}ms. Content length:`, content.length);
+    console.error('First 1000 chars:', content.substring(0, 1000));
+    console.error('Last 1000 chars:', content.substring(Math.max(0, content.length - 1000)));
+    throw new Error(`Failed to parse questions from OpenAI response: ${parseError.message}`);
   }
 
   // Validate the response structure
-  if (!Array.isArray(questions) || questions.length !== totalQuestions) {
+  const validationStartTime = Date.now();
+  if (!Array.isArray(questions)) {
+    console.error('OpenAI response is not an array:', questions);
+    throw new Error('Invalid questions format from OpenAI: response is not an array');
+  }
+
+  // Handle cases where OpenAI returns more or fewer questions than requested
+  if (questions.length < totalQuestions) {
     console.error(`Expected ${totalQuestions} questions but got ${questions.length}:`, questions);
-    throw new Error(`Invalid questions format from OpenAI: expected ${totalQuestions}, got ${questions.length}`);
+    throw new Error(`Insufficient questions from OpenAI: expected ${totalQuestions}, got ${questions.length}`);
+  }
+
+  // If we got more questions than needed, trim to the exact count
+  if (questions.length > totalQuestions) {
+    console.warn(`OpenAI returned ${questions.length} questions, but only ${totalQuestions} were requested. Trimming to requested count.`);
+    questions = questions.slice(0, totalQuestions);
   }
 
   // Validate each question has required fields and count difficulties
@@ -122,38 +220,42 @@ Generate ${totalQuestions} unique questions now (${hardCount} hard, ${mediumCoun
     difficultyCounts[q.difficulty] = (difficultyCounts[q.difficulty] || 0) + 1;
   }
 
-  console.log(`Successfully generated ${questions.length} questions (${difficultyCounts.hard} hard, ${difficultyCounts.medium} medium, ${difficultyCounts.easy} easy)`);
+  const validationDuration = Date.now() - validationStartTime;
+  const totalDuration = Date.now() - functionStartTime;
+
+  console.log(`[DEBUG] Validation completed in ${validationDuration}ms`);
+  console.log(`[DEBUG] Successfully generated ${questions.length} questions (${difficultyCounts.hard} hard, ${difficultyCounts.medium} medium, ${difficultyCounts.easy} easy)`);
+  console.log(`[DEBUG] ====== PERFORMANCE SUMMARY ======`);
+  console.log(`[DEBUG] Total function duration: ${totalDuration}ms (${(totalDuration / 1000).toFixed(2)}s)`);
+  console.log(`[DEBUG] Breakdown:`);
+  console.log(`[DEBUG]   - OpenAI API call: ${apiCallDuration}ms (${((apiCallDuration / totalDuration) * 100).toFixed(1)}%)`);
+  if (usage) {
+    console.log(`[DEBUG]   - Token usage: ${usage.total_tokens} total (${usage.prompt_tokens} prompt + ${usage.completion_tokens} completion)`);
+    console.log(`[DEBUG]   - Cost estimate: ~$${((usage.prompt_tokens * 0.15 + usage.completion_tokens * 0.6) / 1000000).toFixed(4)} (gpt-4o-mini pricing)`);
+  }
+  console.log(`[DEBUG] =================================`);
 
   return {
     success: true,
     questions: questions,
     totalQuestions: totalQuestions,
-    numberOfPlayers: numberOfPlayers,
   };
 }
 
 /**
- * Firebase Cloud Function to generate unique questions for all players using OpenAI
- * Each player gets: 2 hard, 3 medium, 1 easy (6 questions total per player)
- * Returns all questions in one batch to reduce API calls and ensure variety
- */
-/**
  * Firebase Callable Function (for Flutter app)
+ * Generates 6 unique questions for a single player: 2 hard, 3 medium, 1 easy
+ * The frontend should call this function once per player
  */
 exports.generatePlayerQuestions = onCall(
-  { secrets: [openaiApiKey] },
+  {
+    secrets: [openaiApiKey],
+    timeoutSeconds: 60, // 1 minute timeout is sufficient for 6 questions
+    memory: '512MiB' // Reduced memory since we're only generating 6 questions
+  },
   async (request) => {
     try {
-      const { numberOfPlayers } = request.data;
-
-      if (!numberOfPlayers || numberOfPlayers < 1) {
-        throw new functions.https.HttpsError(
-          'invalid-argument',
-          'numberOfPlayers is required and must be at least 1'
-        );
-      }
-
-      return await generateQuestionsLogic(numberOfPlayers);
+      return await generateQuestionsLogic();
 
     } catch (error) {
       console.error('Error generating questions:', error);
@@ -173,9 +275,14 @@ exports.generatePlayerQuestions = onCall(
 
 /**
  * HTTP Function that accepts GCP identity tokens (for testing with curl)
+ * Generates 6 unique questions for a single player: 2 hard, 3 medium, 1 easy
  */
 exports.generatePlayerQuestionsHttp = onRequest(
-  { secrets: [openaiApiKey] },
+  {
+    secrets: [openaiApiKey],
+    timeoutSeconds: 60, // 1 minute timeout is sufficient for 6 questions
+    memory: '512MiB' // Reduced memory since we're only generating 6 questions
+  },
   async (req, res) => {
     // Enable CORS
     res.set('Access-Control-Allow-Origin', '*');
@@ -255,24 +362,7 @@ exports.generatePlayerQuestionsHttp = onRequest(
         return;
       }
 
-      // Parse request body
-      let requestData;
-      if (req.method === 'POST') {
-        requestData = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      } else {
-        requestData = req.query;
-      }
-
-      const numberOfPlayers = requestData?.data?.numberOfPlayers || requestData?.numberOfPlayers;
-
-      if (!numberOfPlayers || numberOfPlayers < 1) {
-        res.status(400).json({
-          error: 'numberOfPlayers is required and must be at least 1'
-        });
-        return;
-      }
-
-      const result = await generateQuestionsLogic(numberOfPlayers);
+      const result = await generateQuestionsLogic();
       res.status(200).json(result);
 
     } catch (error) {

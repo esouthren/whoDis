@@ -150,10 +150,11 @@ class _StartScreenState extends State<StartScreen>
                                           onPressed: () => _startGame(context),
                                           text: 'Start Game'),
                                       const SizedBox(height: 16),
-                                           SecondaryButton(
-                                    onPressed: () => _showJoinDialog(context),
-                                    text: 'Join Game',
-                                  ),
+                                      SecondaryButton(
+                                        onPressed: () =>
+                                            _showJoinDialog(context),
+                                        text: 'Join Game',
+                                      ),
                                     ],
                                   ),
                       ),
@@ -394,22 +395,22 @@ class _StartScreenState extends State<StartScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Game Password'),
+            Text('Your Name'),
             SizedBox(height: 12),
             TextField(
-              controller: passwordController,
-              keyboardType: TextInputType.number,
-              autofocus: true,
+              controller: usernameController,
               onSubmitted: (_) => Navigator.pop(context, {
                 'password': passwordController.text,
                 'username': usernameController.text,
               }),
             ),
             SizedBox(height: 12),
-            Text('Your Name'),
+            Text('Game Password'),
             SizedBox(height: 12),
             TextField(
-              controller: usernameController,
+              controller: passwordController,
+              keyboardType: TextInputType.number,
+              autofocus: true,
               onSubmitted: (_) => Navigator.pop(context, {
                 'password': passwordController.text,
                 'username': usernameController.text,

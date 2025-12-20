@@ -1,132 +1,143 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:whodis/constants/questions.dart';
+import 'package:whodis/models/question.dart';
 
 class QuestionGenerationService {
-  /// Generates all questions for all players in one batch using callable function
-  /// Each player gets: 2 hard, 3 medium, 1 easy (6 questions per player)
-  /// Returns a map of playerId -> List of 6 questions
+  /// Generates questions for each player by calling the callable once per player in parallel.
+  /// Each call returns 6 questions (2 hard, 3 medium, 1 easy) for that player.
+  /// Returns a map of playerId -> List<Question>.
   static Future<Map<String, List<Question>>> generateQuestionsForAllPlayers({
     required List<String> playerIds,
   }) async {
     try {
-      debugPrint('Calling generatePlayerQuestions (callable) for ${playerIds.length} players');
+      debugPrint('Calling generatePlayerQuestions per-player for ${playerIds.length} players');
 
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         throw Exception('Not signed in. Please sign in to generate questions.');
       }
-      // Ensure a fresh token is available (SDK attaches it automatically)
       await user.getIdToken(true);
 
       final callable = FirebaseFunctions.instance.httpsCallable('generatePlayerQuestions');
-      final result = await callable.call({'numberOfPlayers': playerIds.length}).timeout(const Duration(seconds: 30));
 
-      final decoded = result.data;
-      if (decoded is! Map<String, dynamic>) {
-        throw Exception('Unexpected response type');
-      }
-
-      if (decoded['success'] != true) {
-        throw Exception('Function returned unsuccessful result');
-      }
-
-      final questionsJson = (decoded['questions'] as List<dynamic>? ?? const []);
-
-      // Convert JSON to Question objects
-      final allGenerated = questionsJson.map((q) {
-        final text = (q as Map<String, dynamic>)['text']?.toString() ?? '';
-        final difficultyStr = (q)['difficulty']?.toString() ?? 'medium';
-        final difficulty = _parseDifficulty(difficultyStr);
-        return Question(text, difficulty);
-      }).toList();
-
-      debugPrint('Endpoint produced ${allGenerated.length} questions');
-
-      // Distribute questions to players: each gets 2 hard, 3 medium, 1 easy
-      final distributed = _distributeQuestionsToPlayers(allGenerated, playerIds);
-
-      // Ensure every player gets 6 questions; if not, top-up from local fallback
-      for (final id in playerIds) {
-        final list = distributed[id] ?? <Question>[];
-        if (list.length < 6) {
-          final needed = 6 - list.length;
-          final fallback = _fallbackQuestionsOnePlayer();
-          // Add questions up to the needed count
-          final toAdd = <Question>[];
-          for (final q in fallback) {
-            if (toAdd.length >= needed) break;
-            toAdd.add(q);
+      // Launch all requests in parallel, with per-player error handling and fallback
+      final futures = playerIds.map((playerId) async {
+        try {
+          final result = await callable.call().timeout(const Duration(seconds: 60));
+          final decoded = result.data;
+          if (decoded is! Map<String, dynamic>) {
+            throw Exception('Unexpected response type for $playerId');
           }
-          distributed[id] = [...list, ...toAdd].take(6).toList();
-          debugPrint('Topped up player $id with $needed fallback questions');
+          if (decoded['success'] != true) {
+            throw Exception('Function returned unsuccessful result for $playerId');
+          }
+          final questionsJson = (decoded['questions'] as List<dynamic>? ?? const []);
+          final questions = questionsJson.map((q) {
+            final m = (q as Map<String, dynamic>);
+            final text = m['text']?.toString() ?? '';
+            final difficultyStr = m['difficulty']?.toString() ?? 'medium';
+            final difficulty = _parseDifficulty(difficultyStr);
+            return Question(text, difficulty);
+          }).toList();
+
+          if (questions.length != 6) {
+            debugPrint('Player $playerId received ${questions.length} questions, topping up from fallback');
+            // Top-up to 6 from local fallback if needed
+            final fallback = localFallbackQuestionsOnePlayer();
+            final filled = [...questions, ...fallback].take(6).toList();
+            return MapEntry(playerId, filled);
+          }
+
+          return MapEntry(playerId, questions);
+        } catch (e) {
+          debugPrint('Error generating questions for $playerId: $e');
+          return MapEntry(playerId, localFallbackQuestionsOnePlayer());
         }
-      }
+      });
 
-      return distributed;
+      final entries = await Future.wait(futures);
+      final map = Map<String, List<Question>>.fromEntries(entries);
+      debugPrint('Finished generating questions for ${map.length} players');
+      return map;
     } catch (e) {
-      debugPrint('Error generating questions via callable: $e');
-
-      // Fallback to local questions if the endpoint fails
-      debugPrint('Falling back to local questions for all players');
+      debugPrint('Error generating questions via callable (batch-level): $e');
+      // Batch-level failure fallback
       final result = <String, List<Question>>{};
       for (final playerId in playerIds) {
-        result[playerId] = _fallbackQuestionsOnePlayer();
+        result[playerId] = localFallbackQuestionsOnePlayer();
       }
       return result;
     }
   }
 
-  /// Distributes questions to players ensuring each gets 2 hard, 3 medium, 1 easy
-  static Map<String, List<Question>> _distributeQuestionsToPlayers(
-    List<Question> allQuestions,
-    List<String> playerIds,
-  ) {
-    // Separate questions by difficulty
-    final hardQuestions = allQuestions.where((q) => q.difficulty == QuestionDifficulty.hard).toList();
-    final mediumQuestions = allQuestions.where((q) => q.difficulty == QuestionDifficulty.medium).toList();
-    final easyQuestions = allQuestions.where((q) => q.difficulty == QuestionDifficulty.easy).toList();
+  /// Generates questions for a single player by calling the callable once.
+  /// Always returns 6 questions, topping up from local fallback if needed.
+  static Future<List<Question>> generateQuestionsForPlayer({
+    required String playerId,
+  }) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Not signed in. Please sign in to generate questions.');
+      }
+      await user.getIdToken(true);
 
-    debugPrint('Distributing: ${hardQuestions.length} hard, ${mediumQuestions.length} medium, ${easyQuestions.length} easy');
+      final callable = FirebaseFunctions.instance.httpsCallable('generatePlayerQuestions');
+      final result = await callable.call().timeout(const Duration(seconds: 60));
+      final decoded = result.data;
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Unexpected response type for $playerId');
+      }
+      if (decoded['success'] != true) {
+        throw Exception('Function returned unsuccessful result for $playerId');
+      }
+      final questionsJson = (decoded['questions'] as List<dynamic>? ?? const []);
+      final questions = questionsJson.map((q) {
+        final m = (q as Map<String, dynamic>);
+        final text = m['text']?.toString() ?? '';
+        final difficultyStr = m['difficulty']?.toString() ?? 'medium';
+        final difficulty = _parseDifficulty(difficultyStr);
+        return Question(text, difficulty);
+      }).toList();
 
-    final result = <String, List<Question>>{};
-
-    int hardIndex = 0;
-    int mediumIndex = 0;
-    int easyIndex = 0;
-
-    for (final playerId in playerIds) {
-      final playerQuestions = <Question>[];
-
-      // Assign 2 hard questions
-      for (int i = 0; i < 2 && hardIndex < hardQuestions.length; i++) {
-        playerQuestions.add(hardQuestions[hardIndex++]);
+      if (questions.length != 6) {
+        debugPrint('Player $playerId received ${questions.length} questions, topping up from fallback');
+        final fallback = localFallbackQuestionsOnePlayer();
+        return [...questions, ...fallback].take(6).toList();
       }
 
-      // Assign 3 medium questions
-      for (int i = 0; i < 3 && mediumIndex < mediumQuestions.length; i++) {
-        playerQuestions.add(mediumQuestions[mediumIndex++]);
-      }
-
-      // Assign 1 easy question
-      if (easyIndex < easyQuestions.length) {
-        playerQuestions.add(easyQuestions[easyIndex++]);
-      }
-
-      result[playerId] = playerQuestions;
-      debugPrint('Player $playerId assigned ${playerQuestions.length} questions');
+      return questions;
+    } catch (e) {
+      debugPrint('Error generating questions for $playerId: $e');
+      return localFallbackQuestionsOnePlayer();
     }
-
-    return result;
   }
 
-  /// Local fallback: returns 6 questions in distribution 2 hard, 3 medium, 1 easy
-  static List<Question> _fallbackQuestionsOnePlayer() {
-    final hard = allQuestions.where((q) => q.difficulty == QuestionDifficulty.hard).toList()..shuffle();
-    final medium = allQuestions.where((q) => q.difficulty == QuestionDifficulty.medium).toList()..shuffle();
-    final easy = allQuestions.where((q) => q.difficulty == QuestionDifficulty.easy).toList()..shuffle();
+  /// Local fallback: returns 6 questions (2 hard, 3 medium, 1 easy)
+  /// This no longer depends on a giant allQuestions list.
+  static List<Question> localFallbackQuestionsOnePlayer() {
+    final hard = <Question>[
+      const Question('What was the first thing you ate today?', QuestionDifficulty.hard),
+      const Question('Do you prefer mornings or nights?', QuestionDifficulty.hard),
+      const Question('What app do you open first most mornings?', QuestionDifficulty.hard),
+      const Question('Do you prefer cats or dogs?', QuestionDifficulty.hard),
+    ]..shuffle();
+
+    final medium = <Question>[
+      const Question('What is your favorite hobby?', QuestionDifficulty.medium),
+      const Question('What type of music do you listen to?', QuestionDifficulty.medium),
+      const Question('What is your favorite food?', QuestionDifficulty.medium),
+      const Question('What’s your favorite movie genre?', QuestionDifficulty.medium),
+      const Question('What did you do last weekend?', QuestionDifficulty.medium),
+    ]..shuffle();
+
+    final easy = <Question>[
+      const Question('What country do you live in?', QuestionDifficulty.easy),
+      const Question('What is your job or field of study?', QuestionDifficulty.easy),
+      const Question('What’s your current city?', QuestionDifficulty.easy),
+    ]..shuffle();
+
     final list = <Question>[];
     list.addAll(hard.take(2));
     list.addAll(medium.take(3));

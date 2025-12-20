@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:whodis/services/image_generation_service.dart';
+import 'package:whodis/services/question_generation_service.dart';
+import 'package:whodis/models/question.dart';
 
 class TestingScreen extends StatefulWidget {
   const TestingScreen({super.key});
@@ -43,59 +44,60 @@ What was your first pet? A Goldfish
 
     setState(() => _loading = true);
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw Exception('Please sign in first.');
-      }
-      // Refresh token; Functions SDK includes it
-      await user.getIdToken(true);
-
-      debugPrint('TestingScreen calling generatePlayerQuestions (callable) for $count players');
-      final callable = FirebaseFunctions.instance.httpsCallable('generatePlayerQuestions');
-      final resp = await callable.call({'numberOfPlayers': count}).timeout(const Duration(seconds: 30));
-
-      final data = Map<String, dynamic>.from(resp.data as Map);
-      if (data['success'] != true) {
-        throw Exception('Function reported failure');
-      }
-
-      final List<dynamic> questions = (data['questions'] as List<dynamic>?) ?? <dynamic>[];
+      final playerIds = List<String>.generate(count, (i) => 'testPlayer${i + 1}');
+      debugPrint('TestingScreen requesting questions via service for ${playerIds.length} players');
+      final Map<String, List<Question>> result = await QuestionGenerationService.generateQuestionsForAllPlayers(playerIds: playerIds);
       if (!mounted) return;
 
       await showDialog<void>(
         context: context,
         builder: (context) {
           return AlertDialog(
-            title: Text('Questions (${questions.length})', style: theme.textTheme.titleLarge),
+            title: Text('Generated questions for ${result.length} players', style: theme.textTheme.titleLarge),
             content: SizedBox(
-              width: 480,
-              child: questions.isEmpty
+              width: 520,
+              child: result.isEmpty
                   ? Text('No questions returned', style: theme.textTheme.bodyLarge)
                   : Scrollbar(
                       thumbVisibility: true,
                       child: ListView.separated(
                         shrinkWrap: true,
-                        itemCount: questions.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemCount: result.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
-                          final q = Map<String, dynamic>.from(questions[index] as Map);
-                          final text = (q['text'] ?? '').toString();
-                          final difficulty = (q['difficulty'] ?? '').toString();
-                          return Row(
+                          final entry = result.entries.elementAt(index);
+                          final playerId = entry.key;
+                          final questions = entry.value;
+                          return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.help_outline, size: 18, color: theme.colorScheme.secondary),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(text, style: theme.textTheme.bodyLarge),
-                                    if (difficulty.isNotEmpty)
-                                      Text(difficulty, style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.secondary)),
-                                  ],
-                                ),
+                              Row(
+                                children: [
+                                  Icon(Icons.person_outline, size: 18, color: theme.colorScheme.secondary),
+                                  const SizedBox(width: 8),
+                                  Text('$playerId (${questions.length})', style: theme.textTheme.titleMedium),
+                                ],
                               ),
+                              const SizedBox(height: 6),
+                              ...questions.map((q) => Padding(
+                                    padding: const EdgeInsets.only(left: 26, bottom: 6),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(Icons.help_outline, size: 16, color: theme.colorScheme.secondary),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(q.text, style: theme.textTheme.bodyLarge),
+                                              Text(q.difficulty.name, style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.secondary)),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )),
                             ],
                           );
                         },

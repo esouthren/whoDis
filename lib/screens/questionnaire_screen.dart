@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:whodis/constants/questions.dart';
+import 'package:whodis/models/question.dart';
 import 'package:whodis/models/game.dart';
 import 'package:whodis/models/player.dart';
 import 'package:whodis/services/game_service.dart';
@@ -125,7 +125,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       } else {
         // Questions were generated but not found for this player (shouldn't happen)
         debugPrint('Questions should exist but not found for player $playerId');
-        _selectedQuestions = getRandomizedQuestionsForRound();
+        _selectedQuestions = QuestionGenerationService.localFallbackQuestionsOnePlayer();
       }
     } else {
       // Reconstruct questions from existing player_questions
