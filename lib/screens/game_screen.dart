@@ -9,7 +9,7 @@ import 'package:whodis/services/game_service.dart';
 import 'package:whodis/services/player_service.dart';
 import 'package:whodis/services/guess_service.dart';
 import 'package:whodis/services/round_questions_service.dart';
-import 'package:whodis/screens/results_screen.dart';
+import 'package:whodis/screens/reveal_answers.dart';
 import 'package:whodis/screens/countdown_screen.dart';
 
 class GameScreen extends StatefulWidget {
@@ -187,7 +187,7 @@ class _GameScreenState extends State<GameScreen> {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ResultsScreen(gameId: widget.gameId),
+                  builder: (context) => RevealAnswersScreen(gameId: widget.gameId),
                 ),
               );
             });
@@ -448,6 +448,7 @@ class _GameScreenState extends State<GameScreen> {
                                             )
                                           : SingleChildScrollView(
                                               child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
                                                   QuestionsBlock(
                                                     revealedQuestions:
@@ -565,6 +566,7 @@ class QuestionsBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: List.generate(6, (questionIdx) {
         final isRevealed = revealedQuestions.contains(questionIdx);
         final questionText = isRevealed && questionIdx < questions.length
@@ -583,6 +585,7 @@ class QuestionsBlock extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.only(bottom: 12.0),
           child: Container(
+            width: double.infinity,
             constraints: const BoxConstraints(minHeight: 60),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.onPrimary,
@@ -601,6 +604,13 @@ class QuestionsBlock extends StatelessWidget {
                           duration: const Duration(seconds: 1),
                           switchInCurve: Curves.easeInOut,
                           transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
+                          layoutBuilder: (currentChild, previousChildren) => Stack(
+                            alignment: Alignment.centerLeft,
+                            children: [
+                              ...previousChildren,
+                              if (currentChild != null) currentChild,
+                            ],
+                          ),
                           child: isRevealed
                               ? Text(
                                   questionText,
@@ -646,6 +656,13 @@ class QuestionsBlock extends StatelessWidget {
                     duration: const Duration(seconds: 1),
                     switchInCurve: Curves.easeInOut,
                     transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
+                    layoutBuilder: (currentChild, previousChildren) => Stack(
+                      alignment: Alignment.centerLeft,
+                      children: [
+                        ...previousChildren,
+                        if (currentChild != null) currentChild,
+                      ],
+                    ),
                     child: isRevealed
                         ? Text(
                             answerText,

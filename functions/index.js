@@ -38,7 +38,7 @@ Generate exactly ${totalQuestions} unique questions for 1 player following these
 DIFFICULTY LEVELS:
 - HARD (${hardCount} questions): Abstract, subtle, preference-based questions that many people might answer similarly (e.g., "What time did you wake up this morning?", "Do you prefer coffee or tea?", "What's your favorite color?")
 - MEDIUM (${mediumCount} questions): Moderately identifying questions about hobbies, interests, or general lifestyle (e.g., "What is your favorite hobby?", "What type of music do you listen to?", "What's your dream vacation spot?")
-- EASY (${easyCount} questions): Strong identifiers that are unique to individuals - location-specific, career-specific, or highly personal (e.g., "What city were you born in?", "What is your job or field of study?", "What's the name of your pet?")
+- EASY (${easyCount} questions): Strong identifiers that are unique to individuals - place of birth, university attendeded, current hometown, etc.
 
 REQUIREMENTS:
 - Questions must be answerable by anyone

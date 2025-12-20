@@ -11,7 +11,7 @@ import 'package:whodis/screens/start_screen.dart';
 import 'package:whodis/screens/lobby_screen.dart';
 import 'package:whodis/screens/questionnaire_screen.dart';
 import 'package:whodis/screens/game_screen.dart';
-import 'package:whodis/screens/results_screen.dart';
+import 'package:whodis/screens/reveal_answers.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -131,7 +131,7 @@ class GameStateRouter extends StatelessWidget {
       case GameState.game:
         return GameScreen(gameId: game.id);
       case GameState.finished:
-        return ResultsScreen(gameId: game.id);
+        return RevealAnswersScreen(gameId: game.id);
     }
   }
 }
