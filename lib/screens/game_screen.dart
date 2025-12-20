@@ -568,7 +568,7 @@ class QuestionsBlock extends StatelessWidget {
       children: List.generate(6, (questionIdx) {
         final isRevealed = revealedQuestions.contains(questionIdx);
         final questionText = isRevealed && questionIdx < questions.length
-            ? questions[questionIdx]
+            ? questions[questionIdx].trim()
             : '';
         final answerText = isRevealed && questionIdx < answers.length
             ? answers[questionIdx]
@@ -605,6 +605,7 @@ class QuestionsBlock extends StatelessWidget {
                               ? Text(
                                   questionText,
                                   key: ValueKey('q_$questionIdx'),
+                                  textAlign: TextAlign.left,
                                   style: Theme.of(context)
                                       .textTheme
                                       .bodyLarge!
