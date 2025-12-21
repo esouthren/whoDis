@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:whodis/models/game.dart';
 import 'package:whodis/models/player.dart';
@@ -114,27 +115,39 @@ class _GameScreenState extends State<GameScreen> {
       if (game == null || game.roundOrder.isEmpty) return;
 
       final targetPlayerId = game.roundOrder[currentRound];
-      
+
+      // Prevent duplicate awards: if target already has points for this round, skip
+      try {
+        final targetPlayer = await PlayerService().getPlayer(widget.gameId, targetPlayerId);
+        final existingRoundPoints = targetPlayer.roundScores[currentRound] ?? 0;
+        if (existingRoundPoints > 0) {
+          debugPrint('[GameScreen] Target already awarded for round $currentRound: $existingRoundPoints pts. Skipping.');
+          return;
+        }
+      } catch (e) {
+        debugPrint('[GameScreen] Could not pre-check target round award: $e');
+      }
+
       // Get all guesses for this round
       final guessService = GuessService();
       final guesses = await guessService.getGuessesForRound(widget.gameId, currentRound);
-      
+
       // Calculate total points earned by all players (excluding target player)
       int totalPoints = 0;
       int guesserCount = 0;
-      
+
       final guessesGroupedByPlayer = <String, List<Guess>>{};
       for (var guess in guesses) {
         if (guess.guesserId != targetPlayerId) {
           guessesGroupedByPlayer.putIfAbsent(guess.guesserId, () => []).add(guess);
         }
       }
-      
+
       // For each guesser, find their first correct guess and award points
       for (var entry in guessesGroupedByPlayer.entries) {
         final playerGuesses = entry.value;
         playerGuesses.sort((a, b) => a.guessNumber.compareTo(b.guessNumber));
-        
+
         for (var guess in playerGuesses) {
           if (guess.targetPlayerId == targetPlayerId) {
             // This is a correct guess
@@ -145,15 +158,15 @@ class _GameScreenState extends State<GameScreen> {
           }
         }
       }
-      
-      // Award average points to target player
+
+      // Award floored average points to target player (average over players who scored)
       if (guesserCount > 0) {
-        final averagePoints = (totalPoints / guesserCount).round();
+        final averagePoints = (totalPoints / guesserCount).floor();
         await PlayerService().updateScore(widget.gameId, targetPlayerId, averagePoints, round: currentRound);
-        print('[GameScreen] Awarded $averagePoints points to target player $targetPlayerId (average of $totalPoints from $guesserCount players)');
+        debugPrint('[GameScreen] Awarded $averagePoints points to target player $targetPlayerId (floor(avg) of $totalPoints from $guesserCount players)');
       }
     } catch (e) {
-      print('[GameScreen] Error awarding target player score: $e');
+      debugPrint('[GameScreen] Error awarding target player score: $e');
     }
   }
 
