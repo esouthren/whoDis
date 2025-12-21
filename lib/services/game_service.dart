@@ -86,9 +86,28 @@ class GameService {
       'current_round': round,
       'current_question_index': 0,
       'question_start_time': FieldValue.serverTimestamp(),
+      'between_rounds': false,
       'updated_at': Timestamp.fromDate(DateTime.now()),
     });
     print('[GameService] updateCurrentRound - SUCCESS');
+  }
+
+  Future<void> setBetweenRounds(String gameId, bool value) async {
+    print('[GameService] setBetweenRounds - gameId: $gameId, value: $value');
+    await _firestore.collection('games').doc(gameId).update({
+      'between_rounds': value,
+      'updated_at': Timestamp.fromDate(DateTime.now()),
+    });
+    print('[GameService] setBetweenRounds - SUCCESS');
+  }
+
+  Future<void> setEndingGame(String gameId, bool value) async {
+    print('[GameService] setEndingGame - gameId: $gameId, value: $value');
+    await _firestore.collection('games').doc(gameId).update({
+      'ending_game': value,
+      'updated_at': Timestamp.fromDate(DateTime.now()),
+    });
+    print('[GameService] setEndingGame - SUCCESS');
   }
 
   Future<void> advanceQuestion(String gameId, int questionIndex) async {

@@ -23,7 +23,6 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   Timer? _syncTimer;
-  bool _showingCountdown = false;
   bool _isAdmin = false;
   Timer? _adminQuestionTimer;
 
@@ -89,11 +88,9 @@ class _GameScreenState extends State<GameScreen> {
     await _awardTargetPlayerScore(currentRound);
 
     if (currentRound < totalPlayers - 1) {
-      setState(() {
-        _showingCountdown = true;
-      });
+      await gameService.setBetweenRounds(widget.gameId, true);
     } else {
-      await gameService.updateGameState(widget.gameId, GameState.finished);
+      await gameService.setEndingGame(widget.gameId, true);
     }
   }
 
@@ -149,11 +146,6 @@ class _GameScreenState extends State<GameScreen> {
   Future<void> _advanceToNextRound(int currentRound) async {
     final gameService = GameService();
     await gameService.updateCurrentRound(widget.gameId, currentRound + 1);
-    if (mounted) {
-      setState(() {
-        _showingCountdown = false;
-      });
-    }
   }
 
   int _calculatePoints(int questionIndex, int guessNumber) {
@@ -182,6 +174,19 @@ class _GameScreenState extends State<GameScreen> {
           final game = gameSnapshot.data!;
           _isAdmin = game.creatorId == currentUserId;
 
+          if (game.endingGame) {
+            return CountdownScreen(
+              title: "All done! Let's go to the results",
+              onComplete: () async {
+                if (_isAdmin) {
+                  final svc = GameService();
+                  await svc.setEndingGame(widget.gameId, false);
+                  await svc.updateGameState(widget.gameId, GameState.finished);
+                }
+              },
+            );
+          }
+
           if (game.state == GameState.finished) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               Navigator.pushReplacement(
@@ -197,10 +202,14 @@ class _GameScreenState extends State<GameScreen> {
           final currentRound = game.currentRound ?? 0;
           final roundQuestionsService = RoundQuestionsService();
 
-          if (_showingCountdown) {
+          if (game.betweenRounds) {
             return CountdownScreen(
               title: 'Get ready for the next round!',
-              onComplete: () => _advanceToNextRound(currentRound),
+              onComplete: () {
+                if (_isAdmin) {
+                  _advanceToNextRound(currentRound);
+                }
+              },
             );
           }
 

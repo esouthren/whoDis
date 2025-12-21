@@ -397,7 +397,7 @@ class _RevealAnswersScreenState extends State<RevealAnswersScreen> {
             final score = entry['score'] as int;
             final position = playersWithRoundScores.indexOf(entry) + 1;
 
-            return Row(
+            return Padding(padding: EdgeInsets.only(bottom: 6.0), child: Row(
               children: [
                 Container(
                   width: 28,
@@ -425,7 +425,7 @@ class _RevealAnswersScreenState extends State<RevealAnswersScreen> {
                 ),
                 Text('$score pts', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.secondary, fontWeight: FontWeight.bold)),
               ],
-            );
+            ),);
           }),
         ],
       ),

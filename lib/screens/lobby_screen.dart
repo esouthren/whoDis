@@ -235,27 +235,35 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
               );
             },
           ),
-          IgnorePointer(
-            ignoring: !_isPreparingQuestions,
-            child: AnimatedOpacity(
-              opacity: _isPreparingQuestions ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-              child: Container(
-                color: Theme.of(context).scaffoldBackgroundColor, // solid background to hide content
-                alignment: Alignment.center,
-                child: FadeTransition(
-                  opacity: _fade,
-                  child: Text(
-                    '✨ Preparing questions all about you ✨',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.secondary,
-                        ),
-                    textAlign: TextAlign.center,
+          // Global preparing overlay (visible to all users when Firestore flag is set)
+          StreamBuilder<Game?>(
+            stream: GameService().watchGame(widget.gameId),
+            builder: (context, snapshot) {
+              final preparing = (snapshot.data?.preparingQuestions ?? false) || _isPreparingQuestions;
+              final anim = _isPreparingQuestions ? _fade : const AlwaysStoppedAnimation(1.0);
+              return IgnorePointer(
+                ignoring: !preparing,
+                child: AnimatedOpacity(
+                  opacity: preparing ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  child: Container(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    alignment: Alignment.center,
+                    child: FadeTransition(
+                      opacity: anim,
+                      child: Text(
+                        '✨ Preparing questions all about you ✨',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: Theme.of(context).colorScheme.secondary,
+                            ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ],
       ),
@@ -267,6 +275,11 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
     _fadeController.repeat(reverse: true);
     try {
       debugPrint('[LobbyScreen] Start Game: preparing questions for all players');
+      // Broadcast preparing flag so all clients see the loading overlay
+      await FirebaseFirestore.instance.collection('games').doc(widget.gameId).update({
+        'preparing_questions': true,
+        'updated_at': Timestamp.fromDate(DateTime.now()),
+      });
       // Fetch all players in the game
       final playersSnap = await FirebaseFirestore.instance
           .collection('games')
@@ -328,6 +341,11 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
       }
     } finally {
       _fadeController.stop();
+      // Clear preparing flag for all clients
+      await FirebaseFirestore.instance.collection('games').doc(widget.gameId).update({
+        'preparing_questions': false,
+        'updated_at': Timestamp.fromDate(DateTime.now()),
+      });
       if (mounted) setState(() => _isPreparingQuestions = false);
     }
   }

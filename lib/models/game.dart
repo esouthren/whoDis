@@ -23,6 +23,9 @@ class Game {
   final int timerDuration;
   final int? numberOfRounds;
   final bool questionsGenerated;
+  final bool preparingQuestions;
+  final bool betweenRounds;
+  final bool endingGame;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -41,6 +44,9 @@ class Game {
     this.timerDuration = 12,
     this.numberOfRounds,
     this.questionsGenerated = false,
+    this.preparingQuestions = false,
+    this.betweenRounds = false,
+    this.endingGame = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -60,6 +66,9 @@ class Game {
     'timer_duration': timerDuration,
     'number_of_rounds': numberOfRounds,
     'questions_generated': questionsGenerated,
+    'preparing_questions': preparingQuestions,
+    'between_rounds': betweenRounds,
+    'ending_game': endingGame,
     'created_at': Timestamp.fromDate(createdAt),
     'updated_at': Timestamp.fromDate(updatedAt),
   };
@@ -79,6 +88,9 @@ class Game {
     timerDuration: json['timer_duration'] as int? ?? 12,
     numberOfRounds: json['number_of_rounds'] as int?,
     questionsGenerated: json['questions_generated'] as bool? ?? false,
+    preparingQuestions: json['preparing_questions'] as bool? ?? false,
+    betweenRounds: json['between_rounds'] as bool? ?? false,
+    endingGame: json['ending_game'] as bool? ?? false,
     createdAt: (json['created_at'] as Timestamp).toDate(),
     updatedAt: (json['updated_at'] as Timestamp).toDate(),
   );
@@ -98,6 +110,9 @@ class Game {
     int? timerDuration,
     int? numberOfRounds,
     bool? questionsGenerated,
+    bool? preparingQuestions,
+    bool? betweenRounds,
+    bool? endingGame,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Game(
@@ -115,6 +130,9 @@ class Game {
     timerDuration: timerDuration ?? this.timerDuration,
     numberOfRounds: numberOfRounds ?? this.numberOfRounds,
     questionsGenerated: questionsGenerated ?? this.questionsGenerated,
+    preparingQuestions: preparingQuestions ?? this.preparingQuestions,
+    betweenRounds: betweenRounds ?? this.betweenRounds,
+    endingGame: endingGame ?? this.endingGame,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
