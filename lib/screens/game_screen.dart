@@ -25,6 +25,7 @@ class _GameScreenState extends State<GameScreen> {
   Timer? _syncTimer;
   bool _isAdmin = false;
   Timer? _adminQuestionTimer;
+  bool _endingTriggered = false;
 
   @override
   void initState() {
@@ -52,6 +53,14 @@ class _GameScreenState extends State<GameScreen> {
       final game = await gameService.getGame(widget.gameId);
       if (game == null || !mounted) {
         timer.cancel();
+        _adminQuestionTimer = null;
+        return;
+      }
+
+      // Stop timer if we are ending or finished to avoid duplicate triggers
+      if (game.endingGame || game.state == GameState.finished) {
+        timer.cancel();
+        _adminQuestionTimer = null;
         return;
       }
 
@@ -69,6 +78,7 @@ class _GameScreenState extends State<GameScreen> {
               widget.gameId, currentQuestionIndex + 1);
         } else {
           timer.cancel();
+          _adminQuestionTimer = null;
           await _handleRoundEnd(totalPlayers, currentRound);
         }
       }
@@ -90,7 +100,11 @@ class _GameScreenState extends State<GameScreen> {
     if (currentRound < totalPlayers - 1) {
       await gameService.setBetweenRounds(widget.gameId, true);
     } else {
-      await gameService.setEndingGame(widget.gameId, true);
+      // Guard against duplicate end-game triggers
+      if (!_endingTriggered) {
+        _endingTriggered = true;
+        await gameService.setEndingGame(widget.gameId, true);
+      }
     }
   }
 
@@ -246,7 +260,7 @@ class _GameScreenState extends State<GameScreen> {
                   final questions = roundQuestions.questions;
 
                   // Start admin timer if user is admin and timer not running
-                  if (_isAdmin && game.questionStartTime != null) {
+                  if (_isAdmin && game.questionStartTime != null && !game.endingGame && game.state == GameState.game) {
                     if (_adminQuestionTimer == null ||
                         !_adminQuestionTimer!.isActive) {
                       // Timer started but countdown not running, start it
