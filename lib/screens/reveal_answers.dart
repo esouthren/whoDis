@@ -273,7 +273,7 @@ class _RevealAnswersScreenState extends State<RevealAnswersScreen> {
           child: Column(
             children: [
               Text('Round ${roundIndex + 1}', style: Theme.of(context).textTheme.headlineMedium),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               if (game.revealedRounds.contains(roundIndex))
                 Text(
                   'Answer: ${targetPlayer.username}',
@@ -325,7 +325,7 @@ class _RevealAnswersScreenState extends State<RevealAnswersScreen> {
                       Expanded(
                         child: Text(
                           question,
-                          style: Theme.of(context).textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.bold, fontSize: 22),
+                          style: Theme.of(context).textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.bold, fontSize: 18),
                         ),
                       ),
                     ],
@@ -337,7 +337,7 @@ class _RevealAnswersScreenState extends State<RevealAnswersScreen> {
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: Theme.of(context).colorScheme.secondary,
                           fontWeight: FontWeight.bold,
-                          fontSize: 22,
+                          fontSize: 18,
                         ),
                   ),
                   if (questionGuesses.isNotEmpty) ...[
