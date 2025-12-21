@@ -26,11 +26,21 @@ What was your first pet? A Goldfish
 
   // Editable controller for Questions & Answers box
   final TextEditingController _qaController = TextEditingController(text: _qaSample.trim());
+  // New: editable email used for image generation
+  final TextEditingController _emailController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Default to the signed-in user's email, if available
+    _emailController.text = FirebaseAuth.instance.currentUser?.email ?? '';
+  }
 
   @override
   void dispose() {
     _playersController.dispose();
     _qaController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -128,8 +138,9 @@ What was your first pet? A Goldfish
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Please sign in first.');
-      final email = user.email ?? '';
-      if (email.isEmpty) throw Exception('Signed-in user has no email.');
+
+      final email = _emailController.text.trim();
+      if (email.isEmpty) throw Exception('Please enter an email to use.');
 
       final qa = (_qaController.text.trim().isEmpty) ? _qaSample.trim() : _qaController.text.trim();
 
@@ -213,6 +224,7 @@ What was your first pet? A Goldfish
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(hintText: 'e.g. 4'),
                         onSubmitted: (_) => _runTest(),
+                        style: const TextStyle(color: Colors.black),
                       ),
                       const SizedBox(height: 16),
                       SizedBox(
@@ -242,11 +254,19 @@ What was your first pet? A Goldfish
                     children: [
                       Text('Generate Character Portrait', style: theme.textTheme.titleMedium),
                       const SizedBox(height: 12),
-                      Builder(
-                        builder: (_) {
-                          final email = FirebaseAuth.instance.currentUser?.email ?? '—';
-                          return Text('Signed-in email: $email', style: theme.textTheme.bodyMedium);
-                        },
+                      Text('Email used for generation', style: theme.textTheme.labelSmall!.copyWith(color: Theme.of(context).colorScheme.secondary)),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        style: const TextStyle(color: Colors.black),
+                        decoration: InputDecoration(
+                          hintText: 'name@example.com',
+                          filled: true,
+                          fillColor: theme.colorScheme.surfaceVariant,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                          contentPadding: const EdgeInsets.all(12),
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Text('Questions & Answers (editable)', style: theme.textTheme.labelSmall!.copyWith(color: Theme.of(context).colorScheme.secondary)),

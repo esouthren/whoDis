@@ -124,8 +124,27 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         _selectedQuestions = questionsMap[playerId] ?? [];
       } else {
         // Questions were generated but not found for this player (shouldn't happen)
-        debugPrint('Questions should exist but not found for player $playerId');
-        _selectedQuestions = QuestionGenerationService.localFallbackQuestionsOnePlayer();
+        debugPrint('Questions should exist but not found for player $playerId; regenerating for this player.');
+        final singleQuestions = await QuestionGenerationService.generateQuestionsForPlayer(playerId: playerId);
+        // Convert Question objects to PlayerQuestion objects
+        final playerQuestions = singleQuestions.asMap().entries.map((entry) {
+          final index = entry.key;
+          final question = entry.value;
+          return PlayerQuestion(
+            id: '',
+            questionText: question.text,
+            answer: '',
+            difficulty: question.difficulty.name,
+            order: index,
+            createdAt: DateTime.now(),
+          );
+        }).toList();
+        await playerQuestionService.savePlayerQuestions(
+          gameId: widget.gameId,
+          playerId: playerId,
+          questions: playerQuestions,
+        );
+        _selectedQuestions = singleQuestions;
       }
     } else {
       // Reconstruct questions from existing player_questions

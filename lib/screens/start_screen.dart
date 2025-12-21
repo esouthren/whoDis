@@ -164,34 +164,36 @@ class _StartScreenState extends State<StartScreen>
               ),
             ),
           ),
-          Positioned(
-            right: 16,
-            bottom: 16,
-            child: MouseRegion(
-              onEnter: (_) => setState(() => _isCogHovered = true),
-              onExit: (_) => setState(() => _isCogHovered = false),
-              child: SizedBox(
-                width: 80,
-                height: 80,
-                child: Align(
-                  alignment: Alignment.bottomRight,
-                  child: AnimatedOpacity(
-                    opacity: _isCogHovered ? 1 : 0,
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeInOut,
-                    child: Tooltip(
-                      message: 'Top Secret!',
-                      child: FloatingActionButton.small(
-                        heroTag: 'testingFab',
-                        backgroundColor: Theme.of(context).colorScheme.tertiary,
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const TestingScreen(),
+          if (_currentUser != null && !_isLoading)
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _isCogHovered = true),
+                onExit: (_) => setState(() => _isCogHovered = false),
+                child: SizedBox(
+                  width: 80,
+                  height: 80,
+                  child: Align(
+                    alignment: Alignment.bottomRight,
+                    child: AnimatedOpacity(
+                      opacity: _isCogHovered ? 1 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeInOut,
+                      child: Tooltip(
+                        message: 'Top Secret!',
+                        child: FloatingActionButton.small(
+                          heroTag: 'testingFab',
+                          backgroundColor: Theme.of(context).colorScheme.tertiary,
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const TestingScreen(),
+                            ),
                           ),
-                        ),
-                        child: Icon(
-                          Icons.settings,
-                          color: Theme.of(context).colorScheme.primary,
+                          child: Icon(
+                            Icons.settings,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                         ),
                       ),
                     ),
@@ -199,7 +201,6 @@ class _StartScreenState extends State<StartScreen>
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
