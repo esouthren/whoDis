@@ -149,10 +149,10 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   int _calculatePoints(int questionIndex, int guessNumber) {
-    final basePoints = (6 - questionIndex) * 3;
-    if (guessNumber == 1) return basePoints;
-    if (guessNumber == 2) return basePoints ~/ 2;
-    if (guessNumber == 3) return basePoints ~/ 3;
+    final basePoints = (6 - questionIndex);
+    if (guessNumber == 1) return basePoints * 3;
+    if (guessNumber == 2) return basePoints * 2;
+    if (guessNumber == 3) return basePoints * 1;
     return 0;
   }
 
